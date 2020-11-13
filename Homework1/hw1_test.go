@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestFilter(t *testing.T) {
 	table := []struct {
@@ -74,7 +76,7 @@ func TestReducer(t *testing.T) {
 		testCase := testTable[i]
 		output := sum(testCase.input...)
 		if testCase.output != output {
-			t.Errorf("Problem with the output")
+			t.Errorf("Call %d, expected output %v, actual output %v", i+1, testCase.output, output)
 		}
 	}
 }
@@ -99,7 +101,7 @@ func TestMapReducer(t *testing.T) {
 		testCase := testTable[i]
 		output := powerSum(testCase.input...)
 		if testCase.output != output {
-			t.Errorf("Input %v, expected output %v, actual output %v", testCase.input, testCase.output, output)
+			t.Errorf("Call %d, expected output %v, actual output %v", i+1, testCase.output, output)
 		}
 	}
 }
