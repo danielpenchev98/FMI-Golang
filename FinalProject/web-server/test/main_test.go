@@ -1,7 +1,7 @@
 package main_test
 
 import (
-	. "github.com/FMI-Golang/FinalProject/web-server/src/main"
+	. "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/main"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
