@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 
+	game "example.com/user/web-server/pkg"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,6 +16,7 @@ type User struct {
 var router = gin.Default()
 
 func main() {
+	game.Lol()
 	//router.POST("/user/create")
 }
 
