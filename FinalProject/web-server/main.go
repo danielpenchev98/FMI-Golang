@@ -1,64 +1,62 @@
 package main
 
 import (
-	"errors"
-	"regexp"
+	"fmt"
+	"log"
+	"net/http"
 
-	game "example.com/user/web-server/pkg"
+	val "example.com/user/web-server/pkg/validator"
 	"github.com/gin-gonic/gin"
 )
 
 type User struct {
-	username string
-	password string
+	Username string
+	Password string
+}
+
+type ErrorResponse struct {
+	ErrorCode int    `json:"errorcode"`
+	ErrorMsg  string `json:"message"`
+}
+
+type SuccessResponse struct {
+	Status int `json:"status"`
 }
 
 var router = gin.Default()
 
 func main() {
-	game.Lol()
-	//router.POST("/user/create")
+	router.POST("/user/create", CreateUser)
+	log.Fatal(router.Run(":8080"))
 }
 
-func ValidateUsername(username string) error {
-	if length := len(username); length < 8 || length > 20 {
-		return errors.New("Username should be between 8 and 20 symbols")
-	}
-
-	matched, _ := regexp.Match(`^[^a-zA-Z].+`, []byte(username))
-	if matched {
-		return errors.New("Username should always begin only with a letter")
-	}
-
-	matched, _ = regexp.Match(`^[-_0-9a-zA-Z]+$`, []byte(username))
-	if !matched {
-		return errors.New("Username cannot contain special symbols except \"-\" and \"_\"")
-	}
-
-	return nil
-}
-
-func ValidatePassword(password string) error {
-	if len(password) < 10 {
-		return errors.New("Password should be greater than 9 symbols")
-	}
-
-	matched, _ := regexp.Match(`^[^0-9]+$`, []byte(password))
-	if matched {
-		return errors.New("Password should contain atleast one number")
-	}
-
-	matched, _ = regexp.Match(`^[0-9a-zA-Z]+$`, []byte(password))
-	if matched {
-		return errors.New("Password should contain atleast one special char")
-	}
-
-	return nil
-}
-
-/*func CreateUser(c *gin.Context) {
+func CreateUser(c *gin.Context) {
 	var u User
 	if err := c.ShouldBindJSON(&u); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, "BALABAL")
+		c.JSON(http.StatusUnprocessableEntity, ErrorResponse{
+			ErrorCode: http.StatusUnprocessableEntity,
+			ErrorMsg:  fmt.Sprintf("Cannot register user. Reason %v", err),
+		})
 	}
-}*/
+
+	validator := val.NewValidator()
+	if err := validator.ValidateUsername(u.Username); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			ErrorCode: http.StatusBadRequest,
+			ErrorMsg:  fmt.Sprintf("Cannot register user. Reason %v", err),
+		})
+		return
+	}
+
+	if err := validator.ValidatePassword(u.Password); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			ErrorCode: http.StatusBadRequest,
+			ErrorMsg:  fmt.Sprintf("Cannot register user. Reason %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, SuccessResponse{
+		Status: http.StatusCreated,
+	})
+}
