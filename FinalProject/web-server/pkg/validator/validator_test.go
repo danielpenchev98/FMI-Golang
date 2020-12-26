@@ -30,13 +30,6 @@ var _ = Describe("Validator", func() {
 				})
 			})
 
-			Context("username begins with number", func() {
-				It("returns error", func() {
-					err := validator.ValidateUsername("1someusername")
-					Expect(err).To(HaveOccurred())
-				})
-			})
-
 			Context("username begins with non char symbol", func() {
 				It("returns error", func() {
 					err := validator.ValidateUsername("9someusername")

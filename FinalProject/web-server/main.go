@@ -7,8 +7,10 @@ import (
 	"strconv"
 
 	"example.com/user/web-server/pkg/db/dao"
+	myerr "example.com/user/web-server/pkg/errors"
 	val "example.com/user/web-server/pkg/validator"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
 
@@ -73,19 +75,11 @@ func createUser(c *gin.Context) {
 		return
 	}
 
-	validator := val.NewValidator()
-	if err := validator.ValidateUsername(rq.Username); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			ErrorCode: http.StatusBadRequest,
-			ErrorMsg:  fmt.Sprintf("Cannot register user. Reason %v", err),
-		})
-		return
-	}
-
-	if err := validator.ValidatePassword(rq.Password); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			ErrorCode: http.StatusBadRequest,
-			ErrorMsg:  fmt.Sprintf("Cannot register user. Reason %v", err),
+	if err := validateRegistration(rq); err != nil {
+		errorCode, errorMsg := getErrorResponseArguments(err)
+		c.JSON(errorCode, ErrorResponse{
+			ErrorCode: errorCode,
+			ErrorMsg:  errorMsg,
 		})
 		return
 	}
@@ -93,9 +87,10 @@ func createUser(c *gin.Context) {
 	userID, err := uamDAO.CreateUser(rq.Username, rq.Password)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			ErrorCode: http.StatusInternalServerError,
-			ErrorMsg:  "Problem with the server, please try again later",
+		errorCode, errorMsg := getErrorResponseArguments(err)
+		c.JSON(errorCode, ErrorResponse{
+			ErrorCode: errorCode,
+			ErrorMsg:  errorMsg,
 		})
 		return
 	}
@@ -106,22 +101,51 @@ func createUser(c *gin.Context) {
 	})
 }
 
+func validateRegistration(rq RegistrationRequest) error {
+	validator := val.NewValidator()
+	if err := validator.ValidateUsername(rq.Username); err != nil {
+		return errors.Wrapf(err, "Problem with the username")
+	}
+
+	if err := validator.ValidatePassword(rq.Password); err != nil {
+		return errors.Wrapf(err, "Problem with the password")
+	}
+	return nil
+}
+
+func getErrorResponseArguments(err error) (errorCode int, errorMsg string) {
+	switch err.(type) {
+	case *myerr.ClientError:
+		errorCode = http.StatusBadRequest
+		errorMsg = fmt.Sprintf("Invalid request. Reason :%s", err.Error())
+	case *myerr.ItemNotFoundError:
+		errorCode = http.StatusNotFound
+		errorMsg = err.Error()
+	default:
+		errorCode = http.StatusInternalServerError
+		errorMsg = fmt.Sprintf("Problem with the server, please try again later")
+		fmt.Println(err)
+	}
+	return
+}
+
 func deleteUser(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			ErrorCode: http.StatusBadRequest,
-			ErrorMsg:  "Invalid type of id",
+		errorCode, errorMsg := getErrorResponseArguments(myerr.NewClientError("Invalid type of id"))
+		c.JSON(errorCode, ErrorResponse{
+			ErrorCode: errorCode,
+			ErrorMsg:  errorMsg,
 		})
 		return
 	}
 
 	err = uamDAO.DeleteUser(uint(id))
 	if err != nil {
-		//if the error type is pariculary -> user not found
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			ErrorCode: http.StatusBadRequest,
-			ErrorMsg:  "Problem with the deletion of the user",
+		errorCode, errorMsg := getErrorResponseArguments(err)
+		c.JSON(errorCode, ErrorResponse{
+			ErrorCode: errorCode,
+			ErrorMsg:  errorMsg,
 		})
 		return
 	}

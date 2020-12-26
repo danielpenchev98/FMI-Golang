@@ -3,7 +3,7 @@ package dao
 import (
 	"example.com/user/web-server/pkg/db"
 	"example.com/user/web-server/pkg/db/models"
-	"github.com/pkg/errors"
+	myerr "example.com/user/web-server/pkg/errors"
 	"gorm.io/gorm"
 )
 
@@ -28,9 +28,9 @@ func (d *UamDAO) CreateUser(username string, password string) (uint, error) {
 	result := d.dbConn.Table("users").Where("username = ?", username).Count(&count)
 
 	if result.Error != nil {
-		return 0, errors.Wrapf(result.Error, "Cannot check if the user already exists")
+		return 0, myerr.NewServerError("Problem with the lookup of users", result.Error)
 	} else if count > 0 {
-		return 0, errors.New("A user with the same username exists")
+		return 0, myerr.NewClientError("A user with the same username exists")
 	}
 
 	user := models.User{
@@ -39,7 +39,7 @@ func (d *UamDAO) CreateUser(username string, password string) (uint, error) {
 	}
 
 	if result := d.dbConn.Create(&user); result.Error != nil {
-		return 0, errors.Wrapf(result.Error, "Problem with the creation of new user")
+		return 0, myerr.NewServerError("Problem with the creation of new user", result.Error)
 	}
 
 	return user.ID, nil
@@ -52,13 +52,13 @@ func (d *UamDAO) DeleteUser(userID uint) error {
 	result := d.dbConn.Table("users").Where("id = ?", userID).Count(&count)
 
 	if result.Error != nil {
-		return errors.Wrapf(result.Error, "Cannot check if the user exists")
+		return myerr.NewServerError("Problem with the lookup if user exists", result.Error)
 	} else if count == 0 {
-		return errors.New("User not found")
+		return myerr.NewItemNotFoundError("User with that id does not exist")
 	}
 
 	if result = d.dbConn.Unscoped().Delete(&models.User{}, userID); result.Error != nil {
-		return errors.Wrapf(result.Error, "Problem with the deletion of the user")
+		return myerr.NewServerError("Problem with the deletion of the user", result.Error)
 	}
 	return nil
 }

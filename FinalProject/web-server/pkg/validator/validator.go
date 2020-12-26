@@ -1,8 +1,9 @@
 package validator
 
 import (
-	"errors"
 	"regexp"
+
+	myerr "example.com/user/web-server/pkg/errors"
 )
 
 //Validator - interface, declaring all needed validation methods
@@ -46,7 +47,7 @@ func checkRules(rules []rule, target string) error {
 	for _, rule := range rules {
 		matched, _ := regexp.Match(rule.regex, []byte(target))
 		if !matched {
-			return errors.New(rule.errorMsg)
+			return myerr.NewClientError(rule.errorMsg)
 		}
 	}
 	return nil
