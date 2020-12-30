@@ -68,6 +68,7 @@ var _ = Describe("UamDAO", func() {
 				Expect(ok).To(Equal(true))
 			})
 		})
+
 		When("request if user exists is succesful", func() {
 			Context("and user already exists", func() {
 				BeforeEach(func() {
@@ -88,10 +89,12 @@ var _ = Describe("UamDAO", func() {
 			Context("and user doesnt exist", func() {
 				BeforeEach(func() {
 					username, password = "test-user", "test-pass"
+					rows := sqlmock.NewRows([]string{"count"}).AddRow(0)
 					mock.ExpectQuery("SELECT count").
 						WithArgs(username).
-						WillReturnRows(sqlmock.NewRows(nil))
+						WillReturnRows(rows)
 				})
+
 				Context("and creation query is successful", func() {
 					BeforeEach(func() {
 						mock.ExpectQuery("INSERT INTO").
@@ -124,4 +127,78 @@ var _ = Describe("UamDAO", func() {
 
 	})
 
+	Context("Delete user", func() {
+		var id uint
+
+		BeforeEach(func() {
+			id = 1
+		})
+
+		When("request if user exists fails", func() {
+			BeforeEach(func() {
+				mock.ExpectQuery("SELECT count").
+					WithArgs(id).
+					WillReturnError(fmt.Errorf("some error"))
+			})
+
+			It("propagates error", func() {
+				err := uamDao.DeleteUser(id)
+				_, ok := err.(*myerr.ServerError)
+				Expect(ok).To(Equal(true))
+			})
+		})
+
+		FWhen("request if user exists is succesful", func() {
+			Context("and user does not exist", func() {
+				BeforeEach(func() {
+					rows := sqlmock.NewRows([]string{"count"}).AddRow(0)
+					mock.ExpectQuery("SELECT count").
+						WithArgs(id).
+						WillReturnRows(rows)
+				})
+
+				It("propagates error", func() {
+					err := uamDao.DeleteUser(id)
+					_, ok := err.(*myerr.ItemNotFoundError)
+					Expect(ok).To(Equal(true))
+				})
+			})
+
+			Context("and user exists", func() {
+				BeforeEach(func() {
+					rows := sqlmock.NewRows([]string{"count"}).AddRow(1)
+					mock.ExpectQuery("SELECT count").
+						WithArgs(id).
+						WillReturnRows(rows)
+				})
+
+				FContext("and deletion query is successful", func() {
+					BeforeEach(func() {
+						mock.ExpectQuery("DELETE").
+							WithArgs(id). // driver.NamedValue - {Name: Ordinal:1 Value:2020-12-28 01:22:59.344298 +0200 EET}"
+							WillReturnResult(sqlmock.NewResult(0, 1))
+					})
+
+					It("succeeds", func() {
+						err := uamDao.DeleteUser(id)
+						Expect(err).NotTo(HaveOccurred())
+					})
+				})
+
+				Context("and deletion query fails", func() {
+					BeforeEach(func() {
+						mock.ExpectQuery("DELETE FROM \"users\"").
+							WithArgs(id). // driver.NamedValue - {Name: Ordinal:1 Value:2020-12-28 01:22:59.344298 +0200 EET}"
+							WillReturnError(fmt.Errorf("some error"))
+					})
+
+					It("propagates error", func() {
+						err := uamDao.DeleteUser(id)
+						_, ok := err.(*myerr.ServerError)
+						Expect(ok).To(Equal(true))
+					})
+				})
+			})
+		})
+	})
 })
