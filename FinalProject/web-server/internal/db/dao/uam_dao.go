@@ -7,21 +7,24 @@ import (
 	"gorm.io/gorm"
 )
 
-type UamDAO struct {
+type UamDAO interface {
+	CreateUser(string, string) (uint, error)
+	DeleteUser(uint) error
+}
+
+type UamDAOImpl struct {
 	dbConn *gorm.DB
 }
 
-func NewUamDAO() (*UamDAO, error) {
+func NewUamDAOImpl() (*UamDAOImpl, error) {
 	conn, err := db.GetDBConn()
 	if err != nil {
 		return nil, err
 	}
-	return &UamDAO{dbConn: conn}, nil
+	return &UamDAOImpl{dbConn: conn}, nil
 }
 
-func (d *UamDAO) CreateUser(username string, password string) (uint, error) {
-	//d.dbConn.AutoMigrate(&models.User{})
-
+func (d *UamDAOImpl) CreateUser(username string, password string) (uint, error) {
 	var count int64
 	result := d.dbConn.Table("users").Where("username = ?", username).Count(&count)
 
@@ -44,7 +47,7 @@ func (d *UamDAO) CreateUser(username string, password string) (uint, error) {
 }
 
 //this userID will be saved in the Token
-func (d *UamDAO) DeleteUser(userID uint) error {
+func (d *UamDAOImpl) DeleteUser(userID uint) error {
 
 	var count int64
 	result := d.dbConn.Table("users").Where("id = ?", userID).Count(&count)
