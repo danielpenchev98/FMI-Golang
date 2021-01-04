@@ -13,19 +13,18 @@ import (
 	val "example.com/user/web-server/internal/validator"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var router = gin.Default()
-var uamDAO *dao.UamDAO
+var uamDAO dao.UamDAO
 
 func init() {
 	var err error
-	uamDAO, err = dao.NewUamDAO()
+	uamDAO, err = dao.NewUamDAOImpl()
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Cannot create DAO object. Reason: %v", err))
-		panic("Problem with DAO")
 	}
-
 	router = gin.Default()
 }
 
@@ -39,41 +38,64 @@ func main() {
 	log.Fatal(router.Run(":8080"))
 }
 
+//Set requirement for only json request bodies
 //Maybe the while validation procedure to be encapsualted in the registrationvalidator???
 func createUser(c *gin.Context) {
 	var rq request.RegistrationRequest
 
+	//Decide what exactly to return as response -> custom message + 400 or?
 	if err := c.ShouldBindJSON(&rq); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, response.ErrorResponse{
-			ErrorCode: http.StatusUnprocessableEntity,
-			ErrorMsg:  fmt.Sprintf("Cannot register user. Reason %v", err),
-		})
+		sendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
 	}
 
 	if err := validateRegistration(rq); err != nil {
-		errorCode, errorMsg := getErrorResponseArguments(err)
-		c.JSON(errorCode, response.ErrorResponse{
-			ErrorCode: errorCode,
-			ErrorMsg:  errorMsg,
-		})
+		sendErrorResponse(c, err)
 		return
 	}
 
-	userID, err := uamDAO.CreateUser(rq.Username, rq.Password)
-
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(rq.Password), bcrypt.DefaultCost)
 	if err != nil {
-		errorCode, errorMsg := getErrorResponseArguments(err)
-		c.JSON(errorCode, response.ErrorResponse{
-			ErrorCode: errorCode,
-			ErrorMsg:  errorMsg,
-		})
+		sendErrorResponse(c, err)
+		return
+	}
+
+	var userID uint
+	userID, err = uamDAO.CreateUser(rq.Username, string(hashedPassword))
+	if err != nil {
+		sendErrorResponse(c, err)
 		return
 	}
 
 	c.JSON(http.StatusCreated, response.RegistrationResponse{
 		StatusCode: http.StatusCreated,
-		JWTToken:   string(userID),
+		JWTToken:   fmt.Sprintf("%d", userID),
+	})
+}
+
+func deleteUser(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		sendErrorResponse(c, myerr.NewClientError("Invalid type of id"))
+		return
+	}
+
+	err = uamDAO.DeleteUser(uint(id))
+	if err != nil {
+		sendErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, response.SuccessResponse{
+		Status: http.StatusOK,
+	})
+}
+
+func sendErrorResponse(c *gin.Context, err error) {
+	errorCode, errorMsg := getErrorResponseArguments(err)
+	c.JSON(errorCode, response.ErrorResponse{
+		ErrorCode: errorCode,
+		ErrorMsg:  errorMsg,
 	})
 }
 
@@ -103,30 +125,4 @@ func getErrorResponseArguments(err error) (errorCode int, errorMsg string) {
 		fmt.Println(err)
 	}
 	return
-}
-
-func deleteUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		errorCode, errorMsg := getErrorResponseArguments(myerr.NewClientError("Invalid type of id"))
-		c.JSON(errorCode, response.ErrorResponse{
-			ErrorCode: errorCode,
-			ErrorMsg:  errorMsg,
-		})
-		return
-	}
-
-	err = uamDAO.DeleteUser(uint(id))
-	if err != nil {
-		errorCode, errorMsg := getErrorResponseArguments(err)
-		c.JSON(errorCode, response.ErrorResponse{
-			ErrorCode: errorCode,
-			ErrorMsg:  errorMsg,
-		})
-		return
-	}
-
-	c.JSON(http.StatusCreated, response.SuccessResponse{
-		Status: http.StatusOK,
-	})
 }
