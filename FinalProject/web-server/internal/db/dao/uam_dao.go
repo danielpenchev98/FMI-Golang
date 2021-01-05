@@ -7,8 +7,11 @@ import (
 	"gorm.io/gorm"
 )
 
+//go:generate mockgen --source=uam_dao.go --destination uam_dao_mocks/uam_dao.go --package uam_dao_mocks
+
 type UamDAO interface {
 	CreateUser(string, string) (uint, error)
+	CheckIfUserExists(string,string) (bool,error)
 	DeleteUser(uint) error
 }
 
@@ -62,4 +65,19 @@ func (d *UamDAOImpl) DeleteUser(userID uint) error {
 		return myerr.NewServerError("Problem with the deletion of the user", result.Error)
 	}
 	return nil
+}
+
+func (d *UamDAOImpl) CheckIfUserExists(username string, password string) (bool,error) {
+	var count int64
+	result := d.dbConn.Table("users").
+		Where("username = ?", username).
+		Where("password = ?", password).
+		Count(&count)
+	
+	if result.Error != nil {
+		return false, myerr.NewServerError("Problem with the lookup if user exists", result.Error)
+	} else if count == 0 {
+		return false, nil
+	}
+	return true, nil
 }

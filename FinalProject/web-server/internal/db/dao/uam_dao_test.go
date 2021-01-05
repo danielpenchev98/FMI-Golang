@@ -22,7 +22,7 @@ func (a Any) Match(v driver.Value) bool {
 
 var _ = Describe("UamDAO", func() {
 	var (
-		uamDao *UamDAO
+		uamDao UamDAO
 		mock   sqlmock.Sqlmock
 	)
 
@@ -40,7 +40,7 @@ var _ = Describe("UamDAO", func() {
 		}), &gorm.Config{})
 		Expect(err).NotTo(HaveOccurred())
 
-		uamDao = &UamDAO{dbConn: gdb}
+		uamDao = &UamDAOImpl{dbConn: gdb}
 	})
 
 	AfterEach(func() {
@@ -196,6 +196,59 @@ var _ = Describe("UamDAO", func() {
 						_, ok := err.(*myerr.ServerError)
 						Expect(ok).To(Equal(true))
 					})
+				})
+			})
+		})
+	})
+
+	Context("CheckIfUserExists",func(){
+		const (
+			username = "username"
+			password = "password"
+		)
+
+		When("request if user exists fails", func() {
+			BeforeEach(func() {
+				mock.ExpectQuery("SELECT count").
+					WithArgs(username,password).
+					WillReturnError(fmt.Errorf("some error"))
+			})
+
+			It("propagates error", func() {
+				_, err := uamDao.CheckIfUserExists(username,password)
+				_, ok := err.(*myerr.ServerError)
+				Expect(ok).To(Equal(true))
+			})
+		})
+
+		When("request if user exists is succesful", func() {
+			Context("and user does not exist", func() {
+				BeforeEach(func() {
+					rows := sqlmock.NewRows([]string{"count"}).AddRow(0)
+					mock.ExpectQuery("SELECT count").
+						WithArgs(username,password).
+						WillReturnRows(rows)
+				})
+
+				It("succeds", func() {
+					result, err := uamDao.CheckIfUserExists(username,password)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(result).To(Equal(false))
+				})
+			})
+
+			Context("and user exists", func() {
+				BeforeEach(func() {
+					rows := sqlmock.NewRows([]string{"count"}).AddRow(1)
+					mock.ExpectQuery("SELECT count").
+						WithArgs(username,password).
+						WillReturnRows(rows)
+				})
+
+				It("succeds", func() {
+					result, err := uamDao.CheckIfUserExists(username,password)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(result).To(Equal(true))
 				})
 			})
 		})
