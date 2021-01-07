@@ -2,16 +2,59 @@ package auth
 
 import (
 	"errors"
+	"os"
+	"strconv"
 	"time"
 
+	myerr "example.com/user/web-server/internal/error"
 	jwt "github.com/dgrijalva/jwt-go"
 )
 
-// JwtWrapper wraps the signing key and the issuer
-type JwtWrapper struct {
-	SecretKey       string
+const (
+	secretKey     = "secret"
+	issuerKey     = "issuer"
+	expirationKey = "expiration"
+)
+
+//JwtCreator - a wrapper of jwt library
+type JwtCreator interface {
+	GenerateToken(uint) (string, error)
+	ValidateToken(string) (*JwtClaim, error)
+}
+
+//JwtCreatorImpl - implementation of JwtCreator
+type JwtCreatorImpl struct {
+	Secret          string
 	Issuer          string
 	ExpirationHours int64
+}
+
+//NewJwtCreatorImpl - creates an instance of JwtCreatorImpl
+func NewJwtCreatorImpl() (*JwtCreatorImpl, error) {
+	secret := os.Getenv(secretKey)
+	if len(secret) == 0 {
+		return nil, myerr.NewServerError("", errors.New("Missing value for \"secret\" jwt config"))
+	}
+
+	issuer := os.Getenv(issuerKey)
+	if len(issuer) == 0 {
+		return nil, myerr.NewServerError("", errors.New("Missing value for \"issuer\" jwt config"))
+	}
+
+	expirationStr := os.Getenv(expirationKey)
+	if len(expirationStr) == 0 {
+		return nil, myerr.NewServerError("", errors.New("Missing value for \"expirationHours\" jwt config"))
+	}
+	expirationHours, err := strconv.ParseInt(expirationStr, 10, 64)
+	if err != nil {
+		return nil, myerr.NewServerError("Wrong typeof value for \"expirationHours\" jwt config", err)
+	}
+
+	return &JwtCreatorImpl{
+		Secret:          secret,
+		Issuer:          issuer,
+		ExpirationHours: int64(expirationHours),
+	}, nil
 }
 
 // JwtClaim adds email as a claim to the token
@@ -20,7 +63,9 @@ type JwtClaim struct {
 	jwt.StandardClaims
 }
 
-func (j *JwtWrapper) GenerateToken(userID uint) (signedToken string, err error) {
+//GenerateToken - generates a token, encrypting the userID in it
+//returns the token and error
+func (j *JwtCreatorImpl) GenerateToken(userID uint) (string, error) {
 	claims := &JwtClaim{
 		UserID: userID,
 		StandardClaims: jwt.StandardClaims{
@@ -30,33 +75,32 @@ func (j *JwtWrapper) GenerateToken(userID uint) (signedToken string, err error) 
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	signedToken, err = token.SignedString([]byte(j.SecretKey))
-	return
+	return token.SignedString([]byte(j.Secret))
 }
 
-func (j *JwtWrapper) ValidateToken(signedToken string) (claims *JwtClaim, err error) {
+//ValidateToken - validates a given JWT token
+//returns the encrypted data in the token and error if the token is invalid
+func (j *JwtCreatorImpl) ValidateToken(signedToken string) (*JwtClaim, error) {
 	token, err := jwt.ParseWithClaims(
 		signedToken,
 		&JwtClaim{},
 		func(token *jwt.Token) (interface{}, error) {
-			return []byte(j.SecretKey), nil
+			return []byte(j.Secret), nil
 		},
 	)
 
 	if err != nil {
-		return
+		//log the error
+		return nil, myerr.NewClientError("Invalid Token")
 	}
 
 	claims, ok := token.Claims.(*JwtClaim)
 	if !ok {
-		err = errors.New("Couldn't parse claims")
-		return
+		return nil, myerr.NewServerError("", errors.New("Problem with parsing claims"))
 	}
 
 	if claims.ExpiresAt < time.Now().Local().Unix() {
-		err = errors.New("JWT is expired")
-		return
+		return nil, myerr.NewClientError("JWT is expired. Please login again.")
 	}
-	return
+	return claims, nil
 }
