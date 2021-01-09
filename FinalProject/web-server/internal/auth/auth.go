@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -92,19 +91,9 @@ func (j *JwtCreatorImpl) ValidateToken(signedToken string) (*JwtClaim, error) {
 	)
 
 	if err != nil {
-		//log the error
-		return nil, myerr.NewClientError("Invalid Token")
+		return nil, myerr.NewClientError("Invalid Token. Please login again.")
 	}
 
-	claims, ok := token.Claims.(*JwtClaim)
-	if !ok {
-		return nil, myerr.NewServerError("Problem with parsing claims")
-	}
-
-	fmt.Println(claims.ExpiresAt)
-	fmt.Println(time.Now().Local().Unix())
-	if claims.ExpiresAt < time.Now().Local().Unix() {
-		return nil, myerr.NewClientError("JWT is expired. Please login again.")
-	}
+	claims, _ := token.Claims.(*JwtClaim)	
 	return claims, nil
 }
