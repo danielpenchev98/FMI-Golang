@@ -17,6 +17,12 @@ func NewClientError(description string) *ClientError {
 	}
 }
 
+func NewClientErrorWrap(err error, description string) *ClientError {
+	return &ClientError{
+		Err: errors.Wrap(err, description),
+	}
+}
+
 type ItemNotFoundError struct {
 	Err error
 }
@@ -40,7 +46,13 @@ func (e *ServerError) Error() string {
 	return e.Err.Error()
 }
 
-func NewServerError(description string, err error) *ServerError {
+func NewServerError(description string) *ServerError {
+	return &ServerError{
+		Err: errors.New(description),
+	}
+}
+
+func NewServerErrorWrap(err error, description string) *ServerError {
 	return &ServerError{
 		Err: errors.Wrapf(err, description),
 	}
