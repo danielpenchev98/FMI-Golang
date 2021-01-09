@@ -3,6 +3,7 @@ package auth_test
 import (
 	"os"
 	"strconv"
+	"time"
 
 	"example.com/user/web-server/internal/auth"
 	myerr "example.com/user/web-server/internal/error"
@@ -95,9 +96,10 @@ var _ = Describe("Auth module", func() {
 		})
 
 		Context("ValidateToken", func() {
+			var token string
+			const userID = 1
+
 			When("validating legal token", func() {
-				var token string
-				const userID = 1
 				BeforeEach(func() {
 					token, _ = jwtCreator.GenerateToken(userID)
 				})
@@ -107,6 +109,36 @@ var _ = Describe("Auth module", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(claims.UserID).To(Equal(uint(userID)))
 					Expect(claims.Issuer).To(Equal(issuer))
+				})
+			})
+
+			When("validating expired token", func() {
+
+				BeforeEach(func() {
+					jwtCreator = &auth.JwtCreatorImpl{
+						Secret:          secret,
+						Issuer:          issuer,
+						ExpirationHours: 0,
+					}
+
+					token, _ = jwtCreator.GenerateToken(userID)
+				})
+
+				It("returns error", func() {
+					time.Sleep(1 * time.Second)
+					_, err := jwtCreator.ValidateToken(token)
+					Expect(err).To(HaveOccurred())
+					_, ok := err.(*myerr.ClientError)
+					Expect(ok).To(Equal(true))
+				})
+			})
+
+			When("validating wrong type of token", func() {
+				It("returns error", func() {
+					_, err := jwtCreator.ValidateToken("wrong-type")
+					Expect(err).To(HaveOccurred())
+					_, ok := err.(*myerr.ClientError)
+					Expect(ok).To(Equal(true))
 				})
 			})
 		})

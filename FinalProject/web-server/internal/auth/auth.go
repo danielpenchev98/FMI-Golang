@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -15,6 +15,8 @@ const (
 	issuerKey     = "issuer"
 	expirationKey = "expiration"
 )
+
+//go:generate mockgen --source=auth.go --destination auth_mocks/auth.go --package auth_mocks
 
 //JwtCreator - a wrapper of jwt library
 type JwtCreator interface {
@@ -33,21 +35,21 @@ type JwtCreatorImpl struct {
 func NewJwtCreatorImpl() (*JwtCreatorImpl, error) {
 	secret := os.Getenv(secretKey)
 	if len(secret) == 0 {
-		return nil, myerr.NewServerError("", errors.New("Missing value for \"secret\" jwt config"))
+		return nil, myerr.NewServerError("Missing value for \"secret\" jwt config")
 	}
 
 	issuer := os.Getenv(issuerKey)
 	if len(issuer) == 0 {
-		return nil, myerr.NewServerError("", errors.New("Missing value for \"issuer\" jwt config"))
+		return nil, myerr.NewServerError("Missing value for \"issuer\" jwt config")
 	}
 
 	expirationStr := os.Getenv(expirationKey)
 	if len(expirationStr) == 0 {
-		return nil, myerr.NewServerError("", errors.New("Missing value for \"expirationHours\" jwt config"))
+		return nil, myerr.NewServerError("Missing value for \"expirationHours\" jwt config")
 	}
 	expirationHours, err := strconv.ParseInt(expirationStr, 10, 64)
 	if err != nil {
-		return nil, myerr.NewServerError("Wrong typeof value for \"expirationHours\" jwt config", err)
+		return nil, myerr.NewServerErrorWrap(err, "Wrong typeof value for \"expiration\" jwt config")
 	}
 
 	return &JwtCreatorImpl{
@@ -96,9 +98,11 @@ func (j *JwtCreatorImpl) ValidateToken(signedToken string) (*JwtClaim, error) {
 
 	claims, ok := token.Claims.(*JwtClaim)
 	if !ok {
-		return nil, myerr.NewServerError("", errors.New("Problem with parsing claims"))
+		return nil, myerr.NewServerError("Problem with parsing claims")
 	}
 
+	fmt.Println(claims.ExpiresAt)
+	fmt.Println(time.Now().Local().Unix())
 	if claims.ExpiresAt < time.Now().Local().Unix() {
 		return nil, myerr.NewClientError("JWT is expired. Please login again.")
 	}
