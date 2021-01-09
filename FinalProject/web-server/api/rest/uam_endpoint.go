@@ -1,17 +1,16 @@
 package rest
 
 import (
+	"fmt"
 	"net/http"
 
 	"example.com/user/web-server/api/common"
-	"example.com/user/web-server/api/common/request"
 	"example.com/user/web-server/api/common/response"
 	"example.com/user/web-server/internal/auth"
 	"example.com/user/web-server/internal/db/dao"
 	myerr "example.com/user/web-server/internal/error"
 	val "example.com/user/web-server/internal/validator"
 	"github.com/gin-gonic/gin"
-	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -26,10 +25,18 @@ type UamEndpoint interface {
 type UamEndpointImpl struct {
 	uamDAO     dao.UamDAO
 	jwtCreator auth.JwtCreator
+	validator  val.Validator
 }
 
-//LoginRequest - request representation for login
-type LoginRequest struct {
+//RegistrationResponse is returned to the client when the registration was successfull
+//it contains the statius of hist request and the jwt token
+type RegistrationResponse struct{
+	Status int    `json:"status"`
+	JWTToken   string `json:"jwt_token"`
+}
+
+//RequestWithCredentials - request representation for login
+type RequestWithCredentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
@@ -41,10 +48,11 @@ type LoginResponse struct {
 }
 
 //NewUamEndPointImpl - function for creation an instance of UamEndpointImpl
-func NewUamEndPointImpl(uamDAO dao.UamDAO, creator auth.JwtCreator) *UamEndpointImpl {
+func NewUamEndPointImpl(uamDAO dao.UamDAO, creator auth.JwtCreator, validator val.Validator) *UamEndpointImpl {
 	return &UamEndpointImpl{
 		uamDAO:     uamDAO,
 		jwtCreator: creator,
+		validator:  validator,
 	}
 }
 
@@ -52,7 +60,7 @@ func NewUamEndPointImpl(uamDAO dao.UamDAO, creator auth.JwtCreator) *UamEndpoint
 //Maybe the while validation procedure to be encapsualted in the registrationvalidator???
 //CreateUser - handler of request for creation of new user
 func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
-	var rq request.RegistrationRequest
+	var rq RequestWithCredentials
 
 	//Decide what exactly to return as response -> custom message + 400 or?
 	if err := c.ShouldBindJSON(&rq); err != nil {
@@ -60,7 +68,7 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 		return
 	}
 
-	if err := validateRegistration(rq); err != nil {
+	if err := validateRegistration(e.validator, rq); err != nil {
 		common.SendErrorResponse(c, err)
 		return
 	}
@@ -76,16 +84,16 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, response.SuccessResponse{
+	c.JSON(http.StatusCreated, response.BasicResponse{
 		Status: http.StatusCreated,
 	})
 }
 
 //DeleteUser - handler for request of deletetion of user
-func (e *UamEndpointImpl) DeleteUser(c *gin.Context) {
+func (e *UamEndpointImpl) DeleteUser(c *gin.Context) { //Not tested yet -> gin.Context cannot be mocked
 	id, ok := c.Get("userID")
 	if !ok {
-		common.SendErrorResponse(c, myerr.NewServerError("", errors.New("Cannot retrieve the user id")))
+		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
 		return
 	}
 
@@ -95,24 +103,25 @@ func (e *UamEndpointImpl) DeleteUser(c *gin.Context) {
 	}
 
 	if err := e.uamDAO.DeleteUser(uint(userID)); err != nil {
-		common.SendErrorResponse(c, err)
+		common.SendErrorResponse(c, myerr.NewServerErrorWrap(err, "Problem with deleting user"))
 		return
 	}
 
-	c.JSON(http.StatusCreated, response.SuccessResponse{
+	c.JSON(http.StatusOK, response.BasicResponse{
 		Status: http.StatusOK,
 	})
 }
 
 //Login - handler for request of login of user
 func (e *UamEndpointImpl) Login(c *gin.Context) {
-	var payload LoginRequest
-	if err := c.ShouldBindJSON(&payload); err != nil {
+	var request RequestWithCredentials
+	if err := c.ShouldBindJSON(&request); err != nil {
+		fmt.Println(err)
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
 	}
 
-	user, err := e.uamDAO.GetUser(payload.Username)
+	user, err := e.uamDAO.GetUser(request.Username)
 	if err != nil {
 		if _, ok := err.(*myerr.ItemNotFoundError); ok {
 			//log the error
@@ -123,7 +132,7 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 		return
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(payload.Password))
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(request.Password))
 	if err != nil {
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid credentials"))
 		return
@@ -131,24 +140,24 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 
 	signedToken, err := e.jwtCreator.GenerateToken(user.ID)
 	if err != nil {
+		fmt.Println(err)
 		common.SendErrorResponse(c, err)
 		return
 	}
 
 	c.JSON(http.StatusCreated, LoginResponse{
-		Status: http.StatusOK,
+		Status: http.StatusCreated,
 		Token:  signedToken,
 	})
 }
 
-func validateRegistration(rq request.RegistrationRequest) error {
-	validator := val.NewValidator()
+func validateRegistration(validator val.Validator, rq RequestWithCredentials) error {
 	if err := validator.ValidateUsername(rq.Username); err != nil {
-		return errors.Wrapf(err, "Problem with the username")
+		return myerr.NewClientErrorWrap(err, "Problem with the username")
 	}
 
 	if err := validator.ValidatePassword(rq.Password); err != nil {
-		return errors.Wrapf(err, "Problem with the password")
+		return myerr.NewClientErrorWrap(err, "Problem with the password")
 	}
 	return nil
 }
