@@ -6,6 +6,8 @@ import (
 	myerr "example.com/user/web-server/internal/error"
 )
 
+//go:generate mockgen --source=validator.go --destination validator_mocks/validator.go --package validator_mocks
+
 //Validator - interface, declaring all needed validation methods
 type Validator interface {
 	ValidateUsername(username string) error
@@ -23,8 +25,8 @@ type rule struct {
 	errorMsg string
 }
 
-//NewValidator returns an implmenetaion of the Validator interface
-func NewValidator() *BasicValidator {
+//NewBasicValidator returns an implementaion of the Validator interface
+func NewBasicValidator() *BasicValidator {
 	return &BasicValidator{
 		usernameRules: getBasicUsernameRules(),
 		passwordRules: getBasicPasswordRules(),
