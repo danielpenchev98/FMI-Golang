@@ -1,8 +1,8 @@
 package rest
 
 import (
-	"fmt"
 	"net/http"
+	"log"
 
 	"example.com/user/web-server/api/common"
 	"example.com/user/web-server/api/common/response"
@@ -69,17 +69,20 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 	}
 
 	if err := validateRegistration(e.validator, rq); err != nil {
+		log.Printf("Problem with validation of the user registration input. Reason: %v\n",err)
 		common.SendErrorResponse(c, err)
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(rq.Password), bcrypt.DefaultCost)
 	if err != nil {
+		log.Printf("Problem encryption of use password during the registration. Reason: %v\n",err)
 		common.SendErrorResponse(c, err)
 		return
 	}
 
 	if err = e.uamDAO.CreateUser(rq.Username, string(hashedPassword)); err != nil {
+		log.Printf("Problem crearing the user in the db. Reason: %v\n",err)
 		common.SendErrorResponse(c, err)
 		return
 	}
@@ -93,6 +96,7 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 func (e *UamEndpointImpl) DeleteUser(c *gin.Context) { //Not tested yet -> gin.Context cannot be mocked
 	id, ok := c.Get("userID")
 	if !ok {
+		log.Println("Problem retieval of userID from context.\n")
 		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
 		return
 	}
@@ -103,6 +107,7 @@ func (e *UamEndpointImpl) DeleteUser(c *gin.Context) { //Not tested yet -> gin.C
 	}
 
 	if err := e.uamDAO.DeleteUser(uint(userID)); err != nil {
+		log.Printf("Problem with deletion of user. Reason: %v\n",err)
 		common.SendErrorResponse(c, myerr.NewServerErrorWrap(err, "Problem with deleting user"))
 		return
 	}
@@ -116,7 +121,6 @@ func (e *UamEndpointImpl) DeleteUser(c *gin.Context) { //Not tested yet -> gin.C
 func (e *UamEndpointImpl) Login(c *gin.Context) {
 	var request RequestWithCredentials
 	if err := c.ShouldBindJSON(&request); err != nil {
-		fmt.Println(err)
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
 	}
@@ -124,9 +128,9 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 	user, err := e.uamDAO.GetUser(request.Username)
 	if err != nil {
 		if _, ok := err.(*myerr.ItemNotFoundError); ok {
-			//log the error
 			common.SendErrorResponse(c, myerr.NewClientError("Invalid credentials"))
 		} else {
+			log.Printf("Problem with Login. Reason: %v\n",err)
 			common.SendErrorResponse(c, err)
 		}
 		return
@@ -140,7 +144,7 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 
 	signedToken, err := e.jwtCreator.GenerateToken(user.ID)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Problem with generating Jwt token in the login logic. Reason: %v\n",err)
 		common.SendErrorResponse(c, err)
 		return
 	}
