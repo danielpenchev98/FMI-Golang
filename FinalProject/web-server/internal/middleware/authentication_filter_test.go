@@ -18,11 +18,19 @@ import (
 
 func setupRouter(filter mw.AuthzFilter) *gin.Engine {
 	r := gin.Default()
-	v1 := r.Group("/protected").Use(filter.Authz())
+	v1 := r.Group("/protected").Use(filter.Authz)
 	v1.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, "")
 	})
 	return r
+}
+
+func assertErrorResponse(recorder *httptest.ResponseRecorder, expStatusCode int, expMessage string) {
+	Expect(recorder.Code).To(Equal(expStatusCode))
+	body := response.ErrorResponse{}
+	json.Unmarshal([]byte(recorder.Body.String()), &body)
+	Expect(body.ErrorCode).To(Equal(expStatusCode))
+	Expect(body.ErrorMsg).To(ContainSubstring(expMessage))
 }
 
 var _ = Describe("AuthzFilter", func() {
@@ -52,11 +60,7 @@ var _ = Describe("AuthzFilter", func() {
 			Context("and there isnt an Authorization header", func() {
 				It("returns error", func() {
 					router.ServeHTTP(recorder, req)
-					Expect(recorder.Code).To(Equal(http.StatusForbidden))
-					body := response.ErrorResponse{}
-					json.Unmarshal([]byte(recorder.Body.String()), &body)
-					Expect(body.ErrorCode).To(Equal(http.StatusForbidden))
-					Expect(body.ErrorMsg).To(Equal("No Authorization header provided"))
+					assertErrorResponse(recorder,http.StatusForbidden,"No Authorization header provided")
 				})
 			})
 
@@ -67,11 +71,7 @@ var _ = Describe("AuthzFilter", func() {
 					})
 					It("returns error response", func() {
 						router.ServeHTTP(recorder, req)
-						Expect(recorder.Code).To(Equal(http.StatusBadRequest))
-						body := response.ErrorResponse{}
-						json.Unmarshal([]byte(recorder.Body.String()), &body)
-						Expect(body.ErrorCode).To(Equal(http.StatusBadRequest))
-						Expect(body.ErrorMsg).To(Equal("Incorrect Format of Authorization Token"))
+						assertErrorResponse(recorder,http.StatusBadRequest,"Incorrect Format of Authorization Token")
 					})
 				})
 
@@ -80,7 +80,8 @@ var _ = Describe("AuthzFilter", func() {
 					BeforeEach(func() {
 						req.Header.Set("Authorization", "Bearer sometoken")
 					})
-					Context("and has wrong credentials", func() {
+
+					Context("and token verified fails", func() {
 						BeforeEach(func() {
 							jwtCreator.EXPECT().
 								ValidateToken(gomock.Any()).
@@ -89,14 +90,10 @@ var _ = Describe("AuthzFilter", func() {
 
 						It("returns error response", func() {
 							router.ServeHTTP(recorder, req)
-							Expect(recorder.Code).To(Equal(http.StatusUnauthorized))
-							body := response.ErrorResponse{}
-							json.Unmarshal([]byte(recorder.Body.String()), &body)
-							Expect(body.ErrorCode).To(Equal(http.StatusUnauthorized))
-							Expect(body.ErrorMsg).To(Equal("Invalid Authorization token"))
+							assertErrorResponse(recorder,http.StatusUnauthorized,"Invalid Authorization token")
 						})
 					})
-					Context("and the credentials are legit", func() {
+					Context("and token is succeessfully verified", func() {
 						BeforeEach(func() {
 							jwtCreator.EXPECT().
 								ValidateToken(gomock.Any()).
@@ -105,7 +102,7 @@ var _ = Describe("AuthzFilter", func() {
 								}, nil)
 						})
 
-						It("returns error response", func() {
+						It("returns success", func() {
 							router.ServeHTTP(recorder, req)
 							Expect(recorder.Code).To(Equal(http.StatusOK))
 						})
