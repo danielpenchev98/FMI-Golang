@@ -5,6 +5,7 @@
 package uam_dao_mocks
 
 import (
+	models "example.com/user/web-server/internal/db/models"
 	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
 )
@@ -33,12 +34,11 @@ func (m *MockUamDAO) EXPECT() *MockUamDAOMockRecorder {
 }
 
 // CreateUser mocks base method
-func (m *MockUamDAO) CreateUser(arg0, arg1 string) (uint, error) {
+func (m *MockUamDAO) CreateUser(arg0, arg1 string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateUser", arg0, arg1)
-	ret0, _ := ret[0].(uint)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // CreateUser indicates an expected call of CreateUser
@@ -47,19 +47,19 @@ func (mr *MockUamDAOMockRecorder) CreateUser(arg0, arg1 interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockUamDAO)(nil).CreateUser), arg0, arg1)
 }
 
-// CheckIfUserExists mocks base method
-func (m *MockUamDAO) CheckIfUserExists(arg0, arg1 string) (bool, error) {
+// GetUser mocks base method
+func (m *MockUamDAO) GetUser(arg0 string) (models.User, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckIfUserExists", arg0, arg1)
-	ret0, _ := ret[0].(bool)
+	ret := m.ctrl.Call(m, "GetUser", arg0)
+	ret0, _ := ret[0].(models.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CheckIfUserExists indicates an expected call of CheckIfUserExists
-func (mr *MockUamDAOMockRecorder) CheckIfUserExists(arg0, arg1 interface{}) *gomock.Call {
+// GetUser indicates an expected call of GetUser
+func (mr *MockUamDAOMockRecorder) GetUser(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckIfUserExists", reflect.TypeOf((*MockUamDAO)(nil).CheckIfUserExists), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUser", reflect.TypeOf((*MockUamDAO)(nil).GetUser), arg0)
 }
 
 // DeleteUser mocks base method

@@ -1,6 +1,8 @@
 package dao
 
 import (
+	"errors"
+
 	"example.com/user/web-server/internal/db"
 	"example.com/user/web-server/internal/db/models"
 	myerr "example.com/user/web-server/internal/error"
@@ -10,8 +12,8 @@ import (
 //go:generate mockgen --source=uam_dao.go --destination uam_dao_mocks/uam_dao.go --package uam_dao_mocks
 
 type UamDAO interface {
-	CreateUser(string, string) (uint, error)
-	CheckIfUserExists(string,string) (bool,error)
+	CreateUser(string, string) error
+	GetUser(string) (models.User, error)
 	DeleteUser(uint) error
 }
 
@@ -27,14 +29,14 @@ func NewUamDAOImpl() (*UamDAOImpl, error) {
 	return &UamDAOImpl{dbConn: conn}, nil
 }
 
-func (d *UamDAOImpl) CreateUser(username string, password string) (uint, error) {
+func (d *UamDAOImpl) CreateUser(username string, password string) error {
 	var count int64
 	result := d.dbConn.Table("users").Where("username = ?", username).Count(&count)
 
 	if result.Error != nil {
-		return 0, myerr.NewServerError("Problem with the lookup of users", result.Error)
+		return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup of users")
 	} else if count > 0 {
-		return 0, myerr.NewClientError("A user with the same username exists")
+		return myerr.NewClientError("A user with the same username exists")
 	}
 
 	user := models.User{
@@ -43,10 +45,10 @@ func (d *UamDAOImpl) CreateUser(username string, password string) (uint, error) 
 	}
 
 	if result := d.dbConn.Create(&user); result.Error != nil {
-		return 0, myerr.NewServerError("Problem with the creation of new user", result.Error)
+		return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of new user")
 	}
 
-	return user.ID, nil
+	return nil
 }
 
 //this userID will be saved in the Token
@@ -56,28 +58,29 @@ func (d *UamDAOImpl) DeleteUser(userID uint) error {
 	result := d.dbConn.Table("users").Where("id = ?", userID).Count(&count)
 
 	if result.Error != nil {
-		return myerr.NewServerError("Problem with the lookup if user exists", result.Error)
+		return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup if user exists")
 	} else if count == 0 {
 		return myerr.NewItemNotFoundError("User with that id does not exist")
 	}
 
 	if result = d.dbConn.Unscoped().Delete(&models.User{}, userID); result.Error != nil {
-		return myerr.NewServerError("Problem with the deletion of the user", result.Error)
+		return myerr.NewServerErrorWrap(result.Error, "Problem with the deletion of the user")
 	}
 	return nil
 }
 
-func (d *UamDAOImpl) CheckIfUserExists(username string, password string) (bool,error) {
-	var count int64
+func (d *UamDAOImpl) GetUser(username string) (models.User, error) {
+	var user models.User
+
 	result := d.dbConn.Table("users").
 		Where("username = ?", username).
-		Where("password = ?", password).
-		Count(&count)
-	
-	if result.Error != nil {
-		return false, myerr.NewServerError("Problem with the lookup if user exists", result.Error)
-	} else if count == 0 {
-		return false, nil
+		Take(&user)
+
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return user, myerr.NewItemNotFoundError("User with those credentials does not exist")
+	} else if result.Error != nil {
+		return user, myerr.NewServerErrorWrap(result.Error, "Problem with the lookup if user exists")
 	}
-	return true, nil
+
+	return user, nil
 }
