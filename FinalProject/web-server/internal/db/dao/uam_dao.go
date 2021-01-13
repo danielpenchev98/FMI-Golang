@@ -2,7 +2,6 @@ package dao
 
 import (
 	"errors"
-	"fmt"
 	"log"
 
 	"example.com/user/web-server/internal/db"
@@ -18,6 +17,8 @@ type UamDAO interface {
 	CreateUser(string, string) error
 	GetUser(string) (models.User, error)
 	DeleteUser(uint) error
+
+	CreateGroup(uint, string) error
 }
 
 //UamDAOImpl - implementation of UamDAO
@@ -70,7 +71,6 @@ func (d *UamDAOImpl) DeleteUser(userID uint) error {
 	result := d.dbConn.Table("users").Where("id = ?", userID).Count(&count)
 
 	if result.Error != nil {
-		fmt.Println("----------------------WTF---------------------")
 		log.Printf("Couldnt search for a user with id [%d] in the database. Reason: %v\n", userID, result.Error)
 		return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup if user exists")
 	} else if count == 0 {
@@ -105,14 +105,13 @@ func (d *UamDAOImpl) GetUser(username string) (models.User, error) {
 	return user, nil
 }
 
-/*
-func (d *UamDAOImpl) createGroup(userID uint, groupName string) error {
-	d.dbConn.Transaction(func(tx *gorm.DB) error{
-		var group models.Group
-		result := d.dbConn.Table("groups").Where("name = ?", groupName).Count(&count)
+func (d *UamDAOImpl) CreateGroup(userID uint, groupName string) error {
+	err := d.dbConn.Transaction(func(tx *gorm.DB) error {
+		var count int64
+		result := tx.Table("groups").Where("name = ?", groupName).Count(&count)
 
 		if result.Error != nil {
-			log.Printf("Problem with request to check if group [%s] exists in the database. Reason: %v\n", username, result.Error)
+			log.Printf("Problem with request to check if group [%s] exists in the database. Reason: %v\n", groupName, result.Error)
 			return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup of groups")
 		} else if count > 0 {
 			return myerr.NewClientError("A group with the same name exists")
@@ -123,16 +122,32 @@ func (d *UamDAOImpl) createGroup(userID uint, groupName string) error {
 			OwnerID: userID,
 		}
 
-		log.Printf("Creating group [%s] with owner [%d]", groupName, userID)
-		if result := d.dbConn.Create(&group); result.Error != nil {
-			log.Printf("Problem with the request to create group [%s] with owner [%d] in the database. Reason: %v\n", groupName, ownerID, result.Error)
+		log.Printf("Creating group [%s] with owner [%d]\n", groupName, userID)
+		if result := tx.Create(&group); result.Error != nil {
+			log.Printf("Problem with the request to create group [%s] with owner [%d] in the database. Reason: %v\n", groupName, userID, result.Error)
 			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of new group")
 		}
-		log.Printf("Group with name [%s] and owner [%d] created", groupName, userID)
+		log.Printf("Group with name [%s] and owner [%d] created\n", groupName, userID)
+
+		membership := models.Membership{
+			UserID:  userID,
+			GroupID: group.ID,
+		}
+
+		//its usedless to check if the membership already exists, because basically the group is created in this transaction
+		log.Printf("Creating membership of user [%d] for group [%d]\n", userID, group.ID)
+		if result := tx.Create(&membership); result.Error != nil {
+			log.Printf("Problem with the request to create membership of user [%d] for group [%d] in the database. Reason: %v\n", userID, group.ID, result.Error)
+			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of membership")
+		}
+		log.Printf("Membership of user [%d] for group [%d] is created\n", userID, group.ID)
+
 		return nil
 	})
+	return err
 }
 
+/*
 func (d *UamDAOImpl) addUserToGroup(ownerID uint, userID uint, groupName string) error {
 	var group models.Group
 	result := d.dbConn.Table("groups").
