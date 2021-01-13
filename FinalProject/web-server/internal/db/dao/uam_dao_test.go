@@ -10,6 +10,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -58,13 +59,17 @@ var _ = Describe("UamDAO", func() {
 		When("request if user exists fails", func() {
 			BeforeEach(func() {
 				username = "test-user"
+				mock.ExpectBegin()
 				mock.ExpectQuery("SELECT count").
 					WithArgs(username).
 					WillReturnError(fmt.Errorf("some error"))
+				mock.ExpectRollback()
+
 			})
 
 			It("propagates error", func() {
 				err := uamDao.CreateUser(username, password)
+				Expect(err).To(HaveOccurred())
 				_, ok := err.(*myerr.ServerError)
 				Expect(ok).To(Equal(true))
 			})
@@ -75,32 +80,39 @@ var _ = Describe("UamDAO", func() {
 				BeforeEach(func() {
 					username, password = "test-user", "test-pass"
 					rows := sqlmock.NewRows([]string{"count"}).AddRow(1)
+
+					mock.ExpectBegin()
 					mock.ExpectQuery("SELECT count").
 						WithArgs(username).
 						WillReturnRows(rows)
+					mock.ExpectRollback()
 				})
 
 				It("propagates error", func() {
 					err := uamDao.CreateUser(username, password)
+					Expect(err).To(HaveOccurred())
 					_, ok := err.(*myerr.ClientError)
 					Expect(ok).To(Equal(true))
 				})
 			})
 
 			Context("and user doesnt exist", func() {
+				var rows *sqlmock.Rows
 				BeforeEach(func() {
 					username, password = "test-user", "test-pass"
-					rows := sqlmock.NewRows([]string{"count"}).AddRow(0)
-					mock.ExpectQuery("SELECT count").
-						WithArgs(username).
-						WillReturnRows(rows)
+					rows = sqlmock.NewRows([]string{"count"}).AddRow(0)
 				})
 
 				Context("and creation query is successful", func() {
 					BeforeEach(func() {
+						mock.ExpectBegin()
+						mock.ExpectQuery("SELECT count").
+							WithArgs(username).
+							WillReturnRows(rows)
 						mock.ExpectQuery("INSERT INTO").
 							WithArgs(Any{}, Any{}, Any{}, username, password). // driver.NamedValue - {Name: Ordinal:1 Value:2020-12-28 01:22:59.344298 +0200 EET}"
 							WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+						mock.ExpectCommit()
 					})
 
 					It("succeeds", func() {
@@ -111,13 +123,19 @@ var _ = Describe("UamDAO", func() {
 
 				Context("and creation query fails", func() {
 					BeforeEach(func() {
+						mock.ExpectBegin()
+						mock.ExpectQuery("SELECT count").
+							WithArgs(username).
+							WillReturnRows(rows)
 						mock.ExpectQuery("INSERT INTO").
 							WithArgs(Any{}, Any{}, Any{}, username, password). // driver.NamedValue - {Name: Ordinal:1 Value:2020-12-28 01:22:59.344298 +0200 EET}"
 							WillReturnError(fmt.Errorf("some error"))
+						mock.ExpectRollback()
 					})
 
 					It("propagates error", func() {
 						err := uamDao.CreateUser(username, password)
+						Expect(err).To(HaveOccurred())
 						_, ok := err.(*myerr.ServerError)
 						Expect(ok).To(Equal(true))
 					})
@@ -143,6 +161,7 @@ var _ = Describe("UamDAO", func() {
 
 			It("propagates error", func() {
 				err := uamDao.DeleteUser(id)
+				Expect(err).To(HaveOccurred())
 				_, ok := err.(*myerr.ServerError)
 				Expect(ok).To(Equal(true))
 			})
@@ -155,10 +174,12 @@ var _ = Describe("UamDAO", func() {
 					mock.ExpectQuery("SELECT count").
 						WithArgs(id).
 						WillReturnRows(rows)
+
 				})
 
 				It("propagates error", func() {
 					err := uamDao.DeleteUser(id)
+					Expect(err).To(HaveOccurred())
 					_, ok := err.(*myerr.ItemNotFoundError)
 					Expect(ok).To(Equal(true))
 				})
@@ -193,6 +214,7 @@ var _ = Describe("UamDAO", func() {
 
 					It("propagates error", func() {
 						err := uamDao.DeleteUser(id)
+						Expect(err).To(HaveOccurred())
 						_, ok := err.(*myerr.ServerError)
 						Expect(ok).To(Equal(true))
 					})
@@ -216,6 +238,7 @@ var _ = Describe("UamDAO", func() {
 
 			It("propagates error", func() {
 				_, err := uamDao.GetUser(username)
+				Expect(err).To(HaveOccurred())
 				_, ok := err.(*myerr.ServerError)
 				Expect(ok).To(Equal(true))
 			})
@@ -231,6 +254,7 @@ var _ = Describe("UamDAO", func() {
 
 				It("propagates error", func() {
 					_, err := uamDao.GetUser(username)
+					Expect(err).To(HaveOccurred())
 					_, ok := err.(*myerr.ItemNotFoundError)
 					Expect(ok).To(Equal(true))
 				})
