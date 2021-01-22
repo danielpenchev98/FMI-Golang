@@ -1,8 +1,8 @@
 package rest
 
 import (
-	"net/http"
 	"log"
+	"net/http"
 
 	"example.com/user/web-server/api/common"
 	"example.com/user/web-server/api/common/response"
@@ -19,6 +19,10 @@ type UamEndpoint interface {
 	CreateUser(*gin.Context)
 	DeleteUser(*gin.Context)
 	Login(*gin.Context)
+
+	CreateGroup(*gin.Context)
+	AddMember(*gin.Context)
+	RovokeMembership(*gin.Context)
 }
 
 //UamEndpointImpl - implementation of UamEndpoint
@@ -30,9 +34,9 @@ type UamEndpointImpl struct {
 
 //RegistrationResponse is returned to the client when the registration was successfull
 //it contains the statius of hist request and the jwt token
-type RegistrationResponse struct{
-	Status int    `json:"status"`
-	JWTToken   string `json:"jwt_token"`
+type RegistrationResponse struct {
+	Status   int    `json:"status"`
+	JWTToken string `json:"jwt_token"`
 }
 
 //RequestWithCredentials - request representation for login
@@ -56,7 +60,6 @@ func NewUamEndPointImpl(uamDAO dao.UamDAO, creator auth.JwtCreator, validator va
 	}
 }
 
-//Set requirement for only json request bodies
 //Maybe the while validation procedure to be encapsualted in the registrationvalidator???
 //CreateUser - handler of request for creation of new user
 func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
@@ -69,20 +72,19 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 	}
 
 	if err := validateRegistration(e.validator, rq); err != nil {
-		log.Printf("Problem with validation of the user registration input. Reason: %v\n",err)
 		common.SendErrorResponse(c, err)
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(rq.Password), bcrypt.DefaultCost)
 	if err != nil {
-		log.Printf("Problem encryption of use password during the registration. Reason: %v\n",err)
+		log.Printf("Problem encryption of use password during the registration. Reason: %v\n", err)
 		common.SendErrorResponse(c, err)
 		return
 	}
 
 	if err = e.uamDAO.CreateUser(rq.Username, string(hashedPassword)); err != nil {
-		log.Printf("Problem crearing the user in the db. Reason: %v\n",err)
+		log.Printf("Problem crearing the user in the db. Reason: %v\n", err)
 		common.SendErrorResponse(c, err)
 		return
 	}
@@ -96,7 +98,7 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 func (e *UamEndpointImpl) DeleteUser(c *gin.Context) { //Not tested yet -> gin.Context cannot be mocked
 	id, ok := c.Get("userID")
 	if !ok {
-		log.Println("Problem retieval of userID from context.\n")
+		log.Println("Problem retieval of userID from context.")
 		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
 		return
 	}
@@ -107,7 +109,7 @@ func (e *UamEndpointImpl) DeleteUser(c *gin.Context) { //Not tested yet -> gin.C
 	}
 
 	if err := e.uamDAO.DeleteUser(uint(userID)); err != nil {
-		log.Printf("Problem with deletion of user. Reason: %v\n",err)
+		log.Printf("Problem with deletion of user. Reason: %v\n", err)
 		common.SendErrorResponse(c, myerr.NewServerErrorWrap(err, "Problem with deleting user"))
 		return
 	}
@@ -130,7 +132,7 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 		if _, ok := err.(*myerr.ItemNotFoundError); ok {
 			common.SendErrorResponse(c, myerr.NewClientError("Invalid credentials"))
 		} else {
-			log.Printf("Problem with Login. Reason: %v\n",err)
+			log.Printf("Problem with Login. Reason: %v\n", err)
 			common.SendErrorResponse(c, err)
 		}
 		return
@@ -144,7 +146,7 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 
 	signedToken, err := e.jwtCreator.GenerateToken(user.ID)
 	if err != nil {
-		log.Printf("Problem with generating Jwt token in the login logic. Reason: %v\n",err)
+		log.Printf("Problem with generating Jwt token in the login logic. Reason: %v\n", err)
 		common.SendErrorResponse(c, err)
 		return
 	}
@@ -152,6 +154,133 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 	c.JSON(http.StatusCreated, LoginResponse{
 		Status: http.StatusCreated,
 		Token:  signedToken,
+	})
+}
+
+type GroupCreationRequest struct {
+	GroupName string `json:"group_name"`
+}
+
+func (e *UamEndpointImpl) CreateGroup(c *gin.Context) {
+	id, ok := c.Get("userID")
+	if !ok {
+		log.Println("Problem retieval of userID from context.")
+		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
+		return
+	}
+
+	var userID uint
+	if userID, ok = id.(uint); !ok {
+		common.SendErrorResponse(c, myerr.NewClientError("Invalid user ID"))
+	}
+
+	var rq GroupCreationRequest
+	if err := c.ShouldBindJSON(&rq); err != nil {
+		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
+		return
+	}
+
+	//TODO should rename this function - maybe? or create specific function for the group name
+	if err := e.validator.ValidateUsername(rq.GroupName); err != nil {
+		err = myerr.NewClientErrorWrap(err, "Problem with the group name")
+		log.Printf("Problem with validation of the user registration input. Reason: %v\n", err)
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	if err := e.uamDAO.CreateGroup(userID, rq.GroupName); err != nil {
+		log.Printf("Problem with creation of group. Reason: %v\n", err)
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, response.BasicResponse{
+		Status: http.StatusCreated,
+	})
+}
+
+type GroupMembershipRequest struct {
+	GroupName string `json:"group_name"`
+	Username  string `json:"username"`
+}
+
+func (e *UamEndpointImpl) AddMember(c *gin.Context) {
+	id, ok := c.Get("userID")
+	if !ok {
+		log.Println("Problem retieval of userID from context.")
+		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
+		return
+	}
+
+	var userID uint
+	if userID, ok = id.(uint); !ok {
+		common.SendErrorResponse(c, myerr.NewClientError("Invalid user ID"))
+	}
+
+	var rq GroupMembershipRequest
+	if err := c.ShouldBindJSON(&rq); err != nil {
+		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
+		return
+	}
+
+	//TODO should rename this function - maybe? or create specific function for the group name
+	if err := e.validator.ValidateUsername(rq.GroupName); err != nil {
+		err = myerr.NewClientErrorWrap(err, "Problem with the group name")
+		common.SendErrorResponse(c, err)
+		return
+	} else if err = e.validator.ValidateUsername(rq.Username); err != nil {
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	if err := e.uamDAO.AddUserToGroup(userID, rq.Username, rq.GroupName); err != nil {
+		log.Printf("Problem with creation of group. Reason: %v\n", err)
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, response.BasicResponse{
+		Status: http.StatusCreated,
+	})
+}
+
+func (e *UamEndpointImpl) RovokeMembership(c *gin.Context) {
+	id, ok := c.Get("userID")
+	if !ok {
+		log.Println("Problem retieval of userID from context.")
+		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
+		return
+	}
+
+	var userID uint
+	if userID, ok = id.(uint); !ok {
+		common.SendErrorResponse(c, myerr.NewClientError("Invalid user ID"))
+	}
+
+	var rq GroupMembershipRequest
+	if err := c.ShouldBindJSON(&rq); err != nil {
+		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
+		return
+	}
+
+	//TODO should rename this function - maybe? or create specific function for the group name
+	if err := e.validator.ValidateUsername(rq.GroupName); err != nil {
+		err = myerr.NewClientErrorWrap(err, "Problem with the group name")
+		common.SendErrorResponse(c, err)
+		return
+	} else if err = e.validator.ValidateUsername(rq.Username); err != nil {
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	if err := e.uamDAO.RemoveUserFromGroup(userID, rq.Username, rq.GroupName); err != nil {
+		log.Printf("Problem with membership revoke. Reason: %v\n", err)
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response.BasicResponse{
+		Status: http.StatusOK,
 	})
 }
 
