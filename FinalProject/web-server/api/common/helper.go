@@ -29,7 +29,6 @@ func getErrorResponseArguments(err error) (errorCode int, errorMsg string) {
 	default:
 		errorCode = http.StatusInternalServerError
 		errorMsg = fmt.Sprintf("Problem with the server, please try again later")
-		fmt.Println(err)
 	}
 	return
 }
