@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 
-	"example.com/user/web-server/internal/db"
 	"example.com/user/web-server/internal/db/models"
 	myerr "example.com/user/web-server/internal/error"
 	"gorm.io/gorm"
@@ -31,13 +30,8 @@ type UamDAOImpl struct {
 }
 
 //NewUamDAOImpl - function for creation an instance of UamDAOImpl
-func NewUamDAOImpl() (*UamDAOImpl, error) {
-	conn, err := db.GetDBConn()
-	if err != nil {
-		return nil, err
-	}
-
-	return &UamDAOImpl{dbConn: conn}, nil
+func NewUamDAOImpl(dbConn *gorm.DB) *UamDAOImpl {
+	return &UamDAOImpl{dbConn: dbConn}
 }
 
 func (d *UamDAOImpl) Migrate() error {
@@ -101,6 +95,7 @@ func (d *UamDAOImpl) GetUser(username string) (models.User, error) {
 	return getUserWithConn(d.dbConn, username)
 }
 
+//CreateGroup - creates a new group for sharing files
 func (d *UamDAOImpl) CreateGroup(userID uint, groupName string) error {
 	return d.dbConn.Transaction(func(tx *gorm.DB) error {
 		var count int64
@@ -142,10 +137,12 @@ func (d *UamDAOImpl) CreateGroup(userID uint, groupName string) error {
 	})
 }
 
+//GetGroup - gets information about the group
 func (d *UamDAOImpl) GetGroup(groupName string) (models.Group, error) {
 	return getGroupWithConn(d.dbConn, groupName)
 }
 
+//AddUserToGroup - adds a new member to a specified group
 func (d *UamDAOImpl) AddUserToGroup(ownerID uint, username string, groupName string) error {
 	return d.dbConn.Transaction(func(tx *gorm.DB) error {
 		var (
@@ -197,6 +194,7 @@ func (d *UamDAOImpl) AddUserToGroup(ownerID uint, username string, groupName str
 	})
 }
 
+//RemoveUserFromGroup - removes a membership of a user to a specific group
 func (d *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, groupName string) error {
 	return d.dbConn.Transaction(func(tx *gorm.DB) error {
 		var (
@@ -223,9 +221,6 @@ func (d *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, group
 			GroupID: group.ID,
 			UserID:  user.ID,
 		}
-
-		fmt.Println(group.ID)
-		fmt.Println(user.ID)
 
 		log.Printf("Revolking membership for user with id [%d] in group with id [%d]", membership.UserID, membership.GroupID)
 		result := tx.Where("user_id = ?", user.ID).

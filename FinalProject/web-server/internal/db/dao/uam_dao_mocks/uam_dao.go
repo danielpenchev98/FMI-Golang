@@ -33,6 +33,20 @@ func (m *MockUamDAO) EXPECT() *MockUamDAOMockRecorder {
 	return m.recorder
 }
 
+// Migrate mocks base method
+func (m *MockUamDAO) Migrate() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Migrate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Migrate indicates an expected call of Migrate
+func (mr *MockUamDAOMockRecorder) Migrate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Migrate", reflect.TypeOf((*MockUamDAO)(nil).Migrate))
+}
+
 // CreateUser mocks base method
 func (m *MockUamDAO) CreateUser(arg0, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -74,4 +88,46 @@ func (m *MockUamDAO) DeleteUser(arg0 uint) error {
 func (mr *MockUamDAOMockRecorder) DeleteUser(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUser", reflect.TypeOf((*MockUamDAO)(nil).DeleteUser), arg0)
+}
+
+// CreateGroup mocks base method
+func (m *MockUamDAO) CreateGroup(arg0 uint, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateGroup", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateGroup indicates an expected call of CreateGroup
+func (mr *MockUamDAOMockRecorder) CreateGroup(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateGroup", reflect.TypeOf((*MockUamDAO)(nil).CreateGroup), arg0, arg1)
+}
+
+// AddUserToGroup mocks base method
+func (m *MockUamDAO) AddUserToGroup(arg0 uint, arg1, arg2 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddUserToGroup", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddUserToGroup indicates an expected call of AddUserToGroup
+func (mr *MockUamDAOMockRecorder) AddUserToGroup(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddUserToGroup", reflect.TypeOf((*MockUamDAO)(nil).AddUserToGroup), arg0, arg1, arg2)
+}
+
+// RemoveUserFromGroup mocks base method
+func (m *MockUamDAO) RemoveUserFromGroup(arg0 uint, arg1, arg2 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveUserFromGroup", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveUserFromGroup indicates an expected call of RemoveUserFromGroup
+func (mr *MockUamDAOMockRecorder) RemoveUserFromGroup(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveUserFromGroup", reflect.TypeOf((*MockUamDAO)(nil).RemoveUserFromGroup), arg0, arg1, arg2)
 }

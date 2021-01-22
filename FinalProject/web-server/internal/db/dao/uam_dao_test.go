@@ -52,7 +52,7 @@ var _ = Describe("UamDAO", func() {
 		}), &gorm.Config{})
 		Expect(err).NotTo(HaveOccurred())
 
-		uamDao = &UamDAOImpl{dbConn: gdb}
+		uamDao = NewUamDAOImpl(gdb)
 	})
 
 	AfterEach(func() {

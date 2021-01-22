@@ -1,11 +1,10 @@
-package db
+package dbconn
 
 import (
 	"fmt"
 	"os"
 
 	"github.com/pkg/errors"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -31,12 +30,13 @@ const (
 
 var dbConn *gorm.DB
 
-func GetDBConn() (*gorm.DB, error) {
+//GetDBConn - creates a database connection or returns an already existing one
+func GetDBConn(creator func(string) gorm.Dialector) (*gorm.DB, error) {
 	if dbConn != nil {
 		return dbConn, nil
 	}
 
-	dbConn, err := gorm.Open(getDialector(), &gorm.Config{})
+	dbConn, err := gorm.Open(creator(getDBDns()), &gorm.Config{})
 	if err != nil {
 		return nil, errors.Wrap(err, "Cannot create a connection to the database.")
 	}
@@ -53,8 +53,4 @@ func getDBDns() string {
 		os.Getenv(dbName),
 		os.Getenv(dbPort),
 	)
-}
-
-func getDialector() gorm.Dialector {
-	return postgres.Open(getDBDns())
 }
