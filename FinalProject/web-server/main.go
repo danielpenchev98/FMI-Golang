@@ -6,6 +6,7 @@ import (
 	"example.com/user/web-server/api/rest"
 	"example.com/user/web-server/internal/auth"
 	"example.com/user/web-server/internal/db/dao"
+	"example.com/user/web-server/internal/db/dbconn"
 	myerr "example.com/user/web-server/internal/error"
 	"example.com/user/web-server/internal/middleware"
 	val "example.com/user/web-server/internal/validator"
@@ -21,12 +22,12 @@ func main() {
 		filter     middleware.AuthzFilter
 	)
 
-	uamDAO, err := dao.NewUamDAOImpl()
-	uamDAO.Migrate()
+	dbConn, err := dbconn.GetDBConn(dbconn.PostgresDialectorCreator)
 	if err != nil {
-		log.Fatal(myerr.NewServerErrorWrap(err, "Couldnt create a new User Access Management DAO"))
+		log.Fatal(myerr.NewServerErrorWrap(err, "Couldnt create a connection to the database"))
 	}
 
+	uamDAO = dao.NewUamDAOImpl(dbConn)
 	if err = uamDAO.Migrate(); err != nil {
 		log.Fatal(myerr.NewServerErrorWrap(err, "Couldnt migrate the database schemas"))
 	}
@@ -50,7 +51,7 @@ func main() {
 
 		protected := v1.Group("/protected").Use(filter.Authz)
 		{
-			protected.POST("/group/membership/revocation", endpoint.RovokeMembership)
+			protected.POST("/group/membership/revocation", endpoint.RevokeMembership)
 			protected.POST("/group/creation", endpoint.CreateGroup)
 			protected.POST("/group/invitation", endpoint.AddMember)
 			protected.DELETE("/user/deletion", endpoint.DeleteUser)
