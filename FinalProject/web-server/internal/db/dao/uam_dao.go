@@ -194,6 +194,14 @@ func (d *UamDAOImpl) AddUserToGroup(ownerID uint, username string, groupName str
 	})
 }
 
+/*func (d* UamDAOImpl) DeleteGroup(currUserID uint, groupName string) error {
+	return d.dbConn.Transaction(func(tx *gorm.DB) error {
+		group := models.Group{
+			Name
+		}
+	})
+}*/
+
 //RemoveUserFromGroup - removes a membership of a user to a specific group
 func (d *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, groupName string) error {
 	return d.dbConn.Transaction(func(tx *gorm.DB) error {
@@ -217,24 +225,19 @@ func (d *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, group
 			return myerr.NewClientError("Only the owner of the group can revoke membership of other members")
 		}
 
-		membership := models.Membership{
-			GroupID: group.ID,
-			UserID:  user.ID,
-		}
-
-		log.Printf("Revolking membership for user with id [%d] in group with id [%d]", membership.UserID, membership.GroupID)
+		log.Printf("Revolking membership for user with id [%d] in group with id [%d]", user.ID, group.ID)
 		result := tx.Where("user_id = ?", user.ID).
 			Where("group_id = ?", group.ID).
-			Delete(&membership)
+			Delete(&models.Membership{})
 
 		if result.Error != nil {
 			log.Printf("Problem with the request to revoke membership for user with id [%d] in group with id [%d] in the database. Reason: %v\n",
-				membership.GroupID, membership.UserID, result.Error)
+				group.ID, user.ID, result.Error)
 			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of new membership")
 		} else if result.RowsAffected == 0 {
 			return myerr.NewClientError("Membership not found")
 		}
-		log.Printf("Membership for user with id [%d] in group id [%d] is revoked", membership.UserID, membership.GroupID)
+		log.Printf("Membership for user with id [%d] in group id [%d] is revoked", user.ID, group.ID)
 
 		return nil
 	})
