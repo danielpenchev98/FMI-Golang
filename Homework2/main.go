@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"time"
 )
@@ -170,28 +171,49 @@ type ConcurrentMapReduceTask struct {
 }
 
 func (c *ConcurrentMapReduceTask) Execute(arg int) (int, error) {
-	/*var (
-		wg  sync.WaitGroup
-		res int
-		err error
-	)
-
-	err = checkTasks(c.Tasks)
-	if err != nil {
+	if err := checkTasks(c.Tasks); err != nil {
 		return 0, err
 	}
 
-	channel := make(chan Answer,len(c.Tasks))
-
+	prodCh := make(chan Answer)
+	var producers sync.WaitGroup
 	for _, task := range c.Tasks {
-		wg.Add(1)
-		go ParallelTaskExecute(task,arg,channel,&wg)
+		producers.Add(1)
+		go ParallelTaskExecute(task, arg, prodCh, &producers)
 	}
 
-	wg.Wait()
-	tempResults := make([]int,len(c.Tasks))
-	for _, ans := channel*/
-	return 0, nil
+	consumerCh := make(chan Answer)
+	var consumer sync.WaitGroup
+	consumer.Add(1)
+
+	go func(output chan<- Answer, input <-chan Answer, wg *sync.WaitGroup) {
+		var (
+			result int
+			err    error
+		)
+		tempResults := make([]int, 0, len(c.Tasks))
+		for ans := range input {
+			if ans.Err != nil {
+				err = ans.Err
+			}
+			tempResults = append(tempResults, ans.Result)
+		}
+		if err == nil {
+			result = c.Reduce(tempResults)
+		}
+
+		output <- Answer{
+			Result: result,
+			Err:    err,
+		}
+		wg.Done()
+	}(consumerCh, prodCh, &consumer)
+
+	producers.Wait()
+	close(prodCh)
+	ans := <-consumerCh
+	close(consumerCh)
+	return ans.Result, ans.Err
 }
 
 func ConcurrentMapReduce(reduce func(results []int) int, tasks ...Task) Task {
@@ -201,38 +223,151 @@ func ConcurrentMapReduce(reduce func(results []int) int, tasks ...Task) Task {
 	}
 }
 
+type GreatSearcherTask struct {
+	MaxErrors     int
+	IncomingTasks <-chan Task
+}
+
+func (g *GreatSearcherTask) Execute(arg int) (int, error) {
+	incomingResults := make(chan Answer)
+	resultChan := make(chan Answer)
+	var reducer sync.WaitGroup
+	reducer.Add(1)
+	go func(output chan<- Answer, input <-chan Answer, wg *sync.WaitGroup) {
+		var (
+			err       error
+			errors    int
+			maxResult = math.MinInt64
+		)
+
+		for ans := range input {
+			if ans.Err != nil {
+				errors++
+			} else if maxResult < ans.Result {
+				maxResult = ans.Result
+			}
+		}
+		if errors > g.MaxErrors {
+			err = fmt.Errorf("Max allowed errors exceeded")
+		}
+
+		output <- Answer{
+			Result: maxResult,
+			Err:    err,
+		}
+		wg.Done()
+	}(resultChan, incomingResults, &reducer)
+
+	var producer sync.WaitGroup
+	for task := range g.IncomingTasks {
+		if task == nil {
+			continue //or also count it as an error
+		}
+		producer.Add(1)
+		go ParallelTaskExecute(task, arg, incomingResults, &producer)
+	}
+
+	producer.Wait()
+	close(incomingResults)
+	ans := <-resultChan
+	reducer.Wait()
+	close(resultChan)
+	return ans.Result, ans.Err
+}
+
+func GreatestSearcher(errorLimit int, tasks <-chan Task) Task {
+	return &GreatSearcherTask{
+		MaxErrors:     errorLimit,
+		IncomingTasks: tasks,
+	}
+}
+
 func main() {
 	var (
 		res int
 		err error
 	)
 
-	if res, err = Pipeline(adder{20}, adder{10}, adder{-50}).Execute(100); err != nil {
-		fmt.Printf("The pipeline returned an error\n")
+	//Task1
+	if res, err = Pipeline(adder{50}, adder{60}).Execute(10); err != nil {
+		fmt.Println("Error: Task1 successfull scenario failure")
 	} else {
-		fmt.Printf("The pipeline returned %d\n", res)
+		fmt.Printf("Task1 returned %d\n", res)
 	}
 
+	if res, err = Pipeline(adder{20}, adder{10}, adder{-50}).Execute(100); err != nil {
+		fmt.Printf("Task1 returned an error\n")
+	} else {
+		fmt.Println("Error: Task1 unsuccessfull scenario failure")
+	}
+
+	//Task2
 	f := Fastest(
 		lazyAdder{adder{20}, 500},
 		lazyAdder{adder{50}, 300},
-		adder{150},
+		adder{41},
 	)
+
 	if res, err = f.Execute(1); err != nil {
-		fmt.Printf("The fastest task returned an error\n")
+		fmt.Println("Error: Task2 unsuccessfull scenario failure")
+	} else {
+		fmt.Printf("Task2 returned %d\n", res)
+	}
+
+	//Task3
+	_, err = Timed(lazyAdder{adder{20}, 50}, 2*time.Millisecond).Execute(2)
+	if err != nil {
+		fmt.Printf("Task3 returned an error. Reason %v\n", err)
+	} else {
+		fmt.Printf("The unsuccessful scenario of task3 failed")
+	}
+
+	res, err = Timed(lazyAdder{adder{20}, 50}, 300*time.Millisecond).Execute(2)
+	if err != nil {
+		fmt.Printf("The successfull scenario of task3 failed")
 	} else {
 		fmt.Printf("The fastest task returned %d\n", res)
 	}
 
-	_, err = Timed(lazyAdder{adder{20}, 50}, 2*time.Millisecond).Execute(2)
-	if err != nil {
-		fmt.Printf("The first time task returned an error. Reason %v\n", err)
+	//Task4
+	reduce := func(results []int) int {
+		smallest := 128
+		for _, v := range results {
+			if v < smallest {
+				smallest = v
+			}
+		}
+		return smallest
 	}
-	res, err = Timed(lazyAdder{adder{20}, 50}, 300*time.Millisecond).Execute(2)
+
+	mr := ConcurrentMapReduce(reduce, adder{30}, adder{50}, adder{20})
+	if res, err := mr.Execute(5); err != nil {
+		fmt.Printf("The successfull sceanrio of task4 failed\n")
+	} else {
+		fmt.Printf("The ConcurrentMapReduce returned %d\n", res)
+	}
+
+	//Task5
+	tasks := make(chan Task)
+	gs := GreatestSearcher(2, tasks)
+
+	go func() {
+		tasks <- adder{4}
+		tasks <- nil
+		tasks <- lazyAdder{adder{22}, 20}
+		tasks <- adder{125}
+		time.Sleep(50 * time.Millisecond)
+		tasks <- adder{32}
+
+		tasks <- Timed(lazyAdder{adder{100}, 2000}, 20*time.Millisecond)
+		//tasks <- adder{127}
+		close(tasks)
+	}()
+
+	res, err = gs.Execute(10)
 	if err != nil {
 		fmt.Printf("The fastest task returned an error. Reason %v\n", err)
 	} else {
 		fmt.Printf("The fastest task returned %d\n", res)
 	}
-
 }
