@@ -542,7 +542,7 @@ var _ = Describe("UamDAO", func() {
 							AddRow(userID, time.Now(), time.Now(), username, password)
 					})
 
-					Context("and request if membership exsists fails", func() {
+					Context("and request if membership exists fails", func() {
 						Context("and problem with lookup in the db for the membership", func() {
 							BeforeEach(func() {
 								mock.ExpectBegin()
@@ -742,10 +742,15 @@ var _ = Describe("UamDAO", func() {
 			})
 
 			Context("and get user request succeeds", func() {
-				var userRows *sqlmock.Rows
+				var (
+					userRows     *sqlmock.Rows
+					targetUserID uint
+				)
+
 				BeforeEach(func() {
+					targetUserID = userID + 1
 					userRows = sqlmock.NewRows([]string{"id", "created_at", "updated_at", "username", "password"}).
-						AddRow(userID, time.Now(), time.Now(), username, password)
+						AddRow(targetUserID, time.Now(), time.Now(), username, password)
 				})
 
 				Context("and you arent the owner of the group or the targeted user", func() {
@@ -761,7 +766,7 @@ var _ = Describe("UamDAO", func() {
 					})
 
 					It("propagates error", func() {
-						err := uamDao.RemoveUserFromGroup(uint(userID+1), username, groupName)
+						err := uamDao.RemoveUserFromGroup(uint(userID+2), username, groupName)
 						Expect(err).To(HaveOccurred())
 						_, ok := err.(*myerr.ClientError)
 						Expect(ok).To(Equal(true))
@@ -769,7 +774,32 @@ var _ = Describe("UamDAO", func() {
 					})
 				})
 
-				Context("and you are either the owner or the targeted users", func() {
+				Context("and you are the owner of the group and target of the deletion", func() {
+
+					BeforeEach(func() {
+						rows := sqlmock.NewRows([]string{"id", "created_at", "updated_at", "username", "password"}).
+							AddRow(userID, time.Now(), time.Now(), username, password)
+
+						mock.ExpectBegin()
+						mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+							WithArgs(groupName).
+							WillReturnRows(groupRow)
+						mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"`)).
+							WithArgs(username).
+							WillReturnRows(rows)
+						mock.ExpectRollback()
+					})
+
+					It("propagates error", func() {
+						err := uamDao.RemoveUserFromGroup(uint(userID), username, groupName)
+						Expect(err).To(HaveOccurred())
+						_, ok := err.(*myerr.ClientError)
+						Expect(ok).To(Equal(true))
+						Expect(mock.ExpectationsWereMet()).To(BeNil())
+					})
+				})
+
+				Context("and you are the owner(not the targeted user) or the targeted users", func() {
 					Context("and delete membership request fails", func() {
 						BeforeEach(func() {
 							mock.ExpectBegin()
@@ -780,7 +810,7 @@ var _ = Describe("UamDAO", func() {
 								WithArgs(username).
 								WillReturnRows(userRows)
 							mock.ExpectExec("DELETE FROM \"memberships\"").
-								WithArgs(userID, groupID).
+								WithArgs(targetUserID, groupID).
 								WillReturnError(fmt.Errorf("some error"))
 							mock.ExpectRollback()
 						})
@@ -804,7 +834,7 @@ var _ = Describe("UamDAO", func() {
 									WithArgs(username).
 									WillReturnRows(userRows)
 								mock.ExpectExec("DELETE FROM \"memberships\"").
-									WithArgs(userID, groupID).
+									WithArgs(targetUserID, groupID).
 									WillReturnResult(sqlmock.NewResult(0, 0))
 								mock.ExpectRollback()
 							})
@@ -828,7 +858,7 @@ var _ = Describe("UamDAO", func() {
 									WithArgs(username).
 									WillReturnRows(userRows)
 								mock.ExpectExec("DELETE FROM \"memberships\"").
-									WithArgs(userID, groupID).
+									WithArgs(targetUserID, groupID).
 									WillReturnResult(sqlmock.NewResult(0, 1))
 								mock.ExpectCommit()
 							})
@@ -844,5 +874,140 @@ var _ = Describe("UamDAO", func() {
 			})
 		})
 
+	})
+
+	FContext("DeleteGroup", func() {
+		When("get group request fails", func() {
+			Context("problem with the database", func() {
+				BeforeEach(func() {
+					mock.ExpectBegin()
+					mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+						WithArgs(groupName).
+						WillReturnError(fmt.Errorf("some error"))
+					mock.ExpectRollback()
+				})
+
+				It("propagates error", func() {
+					err := uamDao.DeleteGroup(uint(userID), groupName)
+					Expect(err).To(HaveOccurred())
+					_, ok := err.(*myerr.ServerError)
+					Expect(ok).To(Equal(true))
+					Expect(mock.ExpectationsWereMet()).To(BeNil())
+				})
+			})
+
+			Context("and group doesnt exist", func() {
+				BeforeEach(func() {
+					mock.ExpectBegin()
+					mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+						WithArgs(groupName).
+						WillReturnError(gorm.ErrRecordNotFound)
+					mock.ExpectRollback()
+				})
+
+				It("propagates error", func() {
+					err := uamDao.DeleteGroup(uint(userID), groupName)
+					Expect(err).To(HaveOccurred())
+					_, ok := err.(*myerr.ItemNotFoundError)
+					Expect(ok).To(Equal(true))
+					Expect(mock.ExpectationsWereMet()).To(BeNil())
+				})
+			})
+		})
+
+		When("get group request succeeds", func() {
+			var groupRow *sqlmock.Rows
+
+			BeforeEach(func() {
+				groupRow = sqlmock.NewRows([]string{"id", "created_at", "updated_at", "name", "owner_id"}).
+					AddRow(groupID, time.Now(), time.Now(), groupName, userID)
+			})
+
+			Context("and you are not the owner of the targeted group", func() {
+				BeforeEach(func() {
+					mock.ExpectBegin()
+					mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+						WithArgs(groupName).
+						WillReturnRows(groupRow)
+					mock.ExpectRollback()
+				})
+
+				It("propagates error", func() {
+					err := uamDao.DeleteGroup(uint(userID+2), groupName)
+					Expect(err).To(HaveOccurred())
+					_, ok := err.(*myerr.ClientError)
+					Expect(ok).To(Equal(true))
+					Expect(mock.ExpectationsWereMet()).To(BeNil())
+				})
+			})
+
+			Context("and you are the owner of the targeted group", func() {
+				Context("and request to revoke memberships fail", func() {
+					BeforeEach(func() {
+						mock.ExpectBegin()
+						mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+							WithArgs(groupName).
+							WillReturnRows(groupRow)
+						mock.ExpectExec("DELETE FROM \"memberships\"").
+							WithArgs(groupID).
+							WillReturnError(fmt.Errorf("some error"))
+						mock.ExpectRollback()
+					})
+					It("propagates error", func() {
+						err := uamDao.DeleteGroup(uint(userID), groupName)
+						Expect(err).To(HaveOccurred())
+						_, ok := err.(*myerr.ServerError)
+						Expect(ok).To(Equal(true))
+						Expect(mock.ExpectationsWereMet()).To(BeNil())
+					})
+				})
+
+				Context("and request to revoke memberships succeeds",func(){
+					Context("and request to delete group fails", func(){
+						BeforeEach(func() {
+							mock.ExpectBegin()
+							mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+								WithArgs(groupName).
+								WillReturnRows(groupRow)
+							mock.ExpectExec("DELETE FROM \"memberships\"").
+								WithArgs(groupID).
+								WillReturnResult(sqlmock.NewResult(0, 1))
+							mock.ExpectExec("DELETE FROM \"groups\"").
+								WithArgs(groupID).
+								WillReturnError(fmt.Errorf("some error"))
+							mock.ExpectRollback()
+						})
+						It("propagates error", func() {
+							err := uamDao.DeleteGroup(uint(userID), groupName)
+							Expect(err).To(HaveOccurred())
+							_, ok := err.(*myerr.ServerError)
+							Expect(ok).To(Equal(true))
+							Expect(mock.ExpectationsWereMet()).To(BeNil())
+						})
+					})
+					
+					Context("and request to delete group succeeds",func(){
+						BeforeEach(func() {
+							mock.ExpectBegin()
+							mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+								WithArgs(groupName).
+								WillReturnRows(groupRow)
+							mock.ExpectExec("DELETE FROM \"memberships\"").
+								WithArgs(groupID).
+								WillReturnResult(sqlmock.NewResult(0, 1))
+							mock.ExpectExec("DELETE FROM \"groups\"").
+								WithArgs(groupID).
+								WillReturnResult(sqlmock.NewResult(0, 1))
+							mock.ExpectCommit()
+						})
+						It("propagates error", func() {
+							err := uamDao.DeleteGroup(uint(userID), groupName)
+							Expect(err).NotTo(HaveOccurred())
+						})
+					})
+				})
+
+			})
+		})
 	})
 })

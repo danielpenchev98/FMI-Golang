@@ -284,6 +284,40 @@ func (e *UamEndpointImpl) RevokeMembership(c *gin.Context) {
 	})
 }
 
+type GroupDeletionRequest struct{
+	GroupName string `json:"group_name"`
+}
+
+func (e *UamEndpointImpl) DeleteGroup(c *gin.Context){
+	id, ok := c.Get("userID")
+	if !ok {
+		log.Println("Problem retieval of userID from context.")
+		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
+		return
+	}
+
+	var userID uint
+	if userID, ok = id.(uint); !ok {
+		common.SendErrorResponse(c, myerr.NewClientError("Invalid user ID"))
+	}
+
+	var rq GroupDeletionRequest
+	if err := c.ShouldBindJSON(&rq); err != nil {
+		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
+		return
+	}
+
+	if err := e.uamDAO.DeleteGroup(userID, rq.GroupName); err != nil {
+		log.Printf("Problem with deletion of group. Reason: %v\n", err)
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response.BasicResponse{
+		Status: http.StatusOK,
+	})
+}
+
 func validateRegistration(validator val.Validator, rq RequestWithCredentials) error {
 	if err := validator.ValidateUsername(rq.Username); err != nil {
 		return myerr.NewClientErrorWrap(err, "Problem with the username")

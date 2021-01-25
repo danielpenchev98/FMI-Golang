@@ -55,6 +55,7 @@ func main() {
 			protected.POST("/group/creation", endpoint.CreateGroup)
 			protected.POST("/group/invitation", endpoint.AddMember)
 			protected.DELETE("/user/deletion", endpoint.DeleteUser)
+			protected.DELETE("/group/deletion",endpoint.DeleteGroup)
 		}
 	}
 	log.Fatal(router.Run(":8080"))
