@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"example.com/user/web-server/api/common/response"
-	"example.com/user/web-server/internal/auth"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common/response"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth"
 	"github.com/gin-gonic/gin"
 )
 

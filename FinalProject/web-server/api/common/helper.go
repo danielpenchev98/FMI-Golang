@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"example.com/user/web-server/api/common/response"
-	myerr "example.com/user/web-server/internal/error"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common/response"
+	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
 	"github.com/gin-gonic/gin"
 )
 

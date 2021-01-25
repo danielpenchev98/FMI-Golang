@@ -3,7 +3,7 @@ package validator
 import (
 	"regexp"
 
-	myerr "example.com/user/web-server/internal/error"
+	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
 )
 
 //go:generate mockgen --source=validator.go --destination validator_mocks/validator.go --package validator_mocks

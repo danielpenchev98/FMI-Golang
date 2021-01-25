@@ -5,26 +5,26 @@ import (
 	"strconv"
 	"time"
 
-	"example.com/user/web-server/internal/auth"
-	myerr "example.com/user/web-server/internal/error"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth"
+	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Auth module", func() {
-	
+
 	const (
 		secret     = "secret"
 		issuer     = "issuer"
 		expiration = 24
 	)
 
-	BeforeEach(func(){
+	BeforeEach(func() {
 		os.Clearenv()
 	})
 
 	Context("NewJwtCreatorImpl", func() {
-		When("Creating new Jwt creator",func(){
+		When("Creating new Jwt creator", func() {
 			Context("when secret env variable is missing", func() {
 				It("returns error", func() {
 					_, err := auth.NewJwtCreatorImpl()
@@ -34,11 +34,11 @@ var _ = Describe("Auth module", func() {
 				})
 			})
 
-			Context("when secret env variable exists",func(){
-				BeforeEach(func(){
+			Context("when secret env variable exists", func() {
+				BeforeEach(func() {
 					os.Setenv("secret", secret)
 				})
-				AfterEach(func(){
+				AfterEach(func() {
 					os.Unsetenv("secret")
 				})
 
@@ -51,11 +51,11 @@ var _ = Describe("Auth module", func() {
 					})
 				})
 
-				Context("when issuer env variable exists", func(){
+				Context("when issuer env variable exists", func() {
 					BeforeEach(func() {
 						os.Setenv("issuer", issuer)
 					})
-		
+
 					AfterEach(func() {
 						os.Unsetenv("issuer")
 					})
@@ -69,12 +69,12 @@ var _ = Describe("Auth module", func() {
 						})
 					})
 
-					Context("when expiration env vairable exitst", func(){
-						Context("and expiration variable is in illegal format",func(){
+					Context("when expiration env vairable exitst", func() {
+						Context("and expiration variable is in illegal format", func() {
 							BeforeEach(func() {
 								os.Setenv("expiration", "wrong-format")
 							})
-				
+
 							AfterEach(func() {
 								os.Unsetenv("expiration")
 							})
@@ -87,21 +87,21 @@ var _ = Describe("Auth module", func() {
 							})
 						})
 
-						Context("and expiration variable is in legal format",func(){
+						Context("and expiration variable is in legal format", func() {
 							BeforeEach(func() {
 								os.Setenv("expiration", strconv.Itoa(expiration))
 							})
-				
+
 							AfterEach(func() {
 								os.Unsetenv("expiration")
 							})
 
-							It("succeeds",func(){
+							It("succeeds", func() {
 								actualResult, err := auth.NewJwtCreatorImpl()
 								Expect(err).NotTo(HaveOccurred())
 								expectedResult := &auth.JwtCreatorImpl{
-									Secret: secret,
-									Issuer: issuer,
+									Secret:          secret,
+									Issuer:          issuer,
 									ExpirationHours: expiration,
 								}
 								Expect(actualResult).To(Equal(expectedResult))

@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"example.com/user/web-server/api/common/response"
-	"example.com/user/web-server/internal/auth"
-	authMock "example.com/user/web-server/internal/auth/auth_mocks"
-	mw "example.com/user/web-server/internal/middleware"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common/response"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth"
+	authMock "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth/auth_mocks"
+	mw "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
@@ -60,7 +60,7 @@ var _ = Describe("AuthzFilter", func() {
 			Context("and there isnt an Authorization header", func() {
 				It("returns error", func() {
 					router.ServeHTTP(recorder, req)
-					assertErrorResponse(recorder,http.StatusForbidden,"No Authorization header provided")
+					assertErrorResponse(recorder, http.StatusForbidden, "No Authorization header provided")
 				})
 			})
 
@@ -71,7 +71,7 @@ var _ = Describe("AuthzFilter", func() {
 					})
 					It("returns error response", func() {
 						router.ServeHTTP(recorder, req)
-						assertErrorResponse(recorder,http.StatusBadRequest,"Incorrect Format of Authorization Token")
+						assertErrorResponse(recorder, http.StatusBadRequest, "Incorrect Format of Authorization Token")
 					})
 				})
 
@@ -90,7 +90,7 @@ var _ = Describe("AuthzFilter", func() {
 
 						It("returns error response", func() {
 							router.ServeHTTP(recorder, req)
-							assertErrorResponse(recorder,http.StatusUnauthorized,"Invalid Authorization token")
+							assertErrorResponse(recorder, http.StatusUnauthorized, "Invalid Authorization token")
 						})
 					})
 					Context("and token is succeessfully verified", func() {

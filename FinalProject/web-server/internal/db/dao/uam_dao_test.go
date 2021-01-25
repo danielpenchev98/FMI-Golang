@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"time"
 
-	"example.com/user/web-server/internal/db/models"
-	myerr "example.com/user/web-server/internal/error"
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/models"
+	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -425,7 +425,7 @@ var _ = Describe("UamDAO", func() {
 
 	Context("AddUserToGroup", func() {
 		When("get group request fails", func() {
-			Context("problem with the database", func() {
+			Context("and there is a problem with the database", func() {
 				BeforeEach(func() {
 					mock.ExpectBegin()
 					mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
@@ -462,7 +462,7 @@ var _ = Describe("UamDAO", func() {
 			})
 		})
 
-		When("get group request is sucessfull", func() {
+		When("and get group request is sucessfull", func() {
 			Context("and you arent the owner of the group", func() {
 				BeforeEach(func() {
 					rows := sqlmock.NewRows([]string{"id", "created_at", "updated_at", "name", "owner_id"}).
@@ -512,7 +512,7 @@ var _ = Describe("UamDAO", func() {
 						})
 					})
 
-					Context("user does not exist", func() {
+					Context("and user does not exist", func() {
 						BeforeEach(func() {
 							mock.ExpectBegin()
 							mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).

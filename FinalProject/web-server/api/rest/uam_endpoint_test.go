@@ -8,13 +8,13 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	"example.com/user/web-server/api/common/response"
-	"example.com/user/web-server/api/rest"
-	"example.com/user/web-server/internal/auth/auth_mocks"
-	"example.com/user/web-server/internal/db/dao/uam_dao_mocks"
-	"example.com/user/web-server/internal/db/models"
-	myerr "example.com/user/web-server/internal/error"
-	"example.com/user/web-server/internal/validator/validator_mocks"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common/response"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/rest"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth/auth_mocks"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/dao/uam_dao_mocks"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/models"
+	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/validator/validator_mocks"
 	"github.com/gin-gonic/gin"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
@@ -55,7 +55,7 @@ var _ = Describe("UamEndpoint", func() {
 		jwtCreator *auth_mocks.MockJwtCreator
 		uamDAO     *uam_dao_mocks.MockUamDAO
 		validator  *validator_mocks.MockValidator
-		req *http.Request
+		req        *http.Request
 	)
 
 	const userID = 1
@@ -302,20 +302,41 @@ var _ = Describe("UamEndpoint", func() {
 
 				Context("and request to check if user exist succeeds", func() {
 					Context("and user doesnt exist", func() {
-						BeforeEach(func() {
-							uamDAO.EXPECT().
-								GetUser(username).
-								Return(models.User{}, myerr.NewClientError("test-error"))
+						Context("username doesn't exist", func() {
+							BeforeEach(func() {
+								uamDAO.EXPECT().
+									GetUser(username).
+									Return(models.User{}, myerr.NewItemNotFoundError("test-error"))
 
-							jwtCreator.EXPECT().
-								GenerateToken(gomock.Any()).
-								Times(0)
+								jwtCreator.EXPECT().
+									GenerateToken(gomock.Any()).
+									Times(0)
+							})
+
+							It("returns bad request error response", func() {
+								router.ServeHTTP(recorder, req)
+								assertErrorResponse(recorder, http.StatusBadRequest, "Invalid credentials")
+							})
+						})
+						Context("passwords doesnt match", func() {
+							BeforeEach(func() {
+								encryptedPass, _ := bcrypt.GenerateFromPassword([]byte("different-password"), bcrypt.DefaultCost)
+
+								uamDAO.EXPECT().
+									GetUser(username).
+									Return(models.User{Username: username, Password: string(encryptedPass)}, nil)
+
+								jwtCreator.EXPECT().
+									GenerateToken(gomock.Any()).
+									Times(0)
+							})
+
+							It("returns bad request error response", func() {
+								router.ServeHTTP(recorder, req)
+								assertErrorResponse(recorder, http.StatusBadRequest, "Invalid credentials")
+							})
 						})
 
-						It("returns bad request error response", func() {
-							router.ServeHTTP(recorder, req)
-							assertErrorResponse(recorder, http.StatusBadRequest, "test-error")
-						})
 					})
 
 					Context("and user exist", func() {

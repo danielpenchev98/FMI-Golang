@@ -5,7 +5,7 @@
 package auth_mocks
 
 import (
-	auth "example.com/user/web-server/internal/auth"
+	auth "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth"
 	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
 )

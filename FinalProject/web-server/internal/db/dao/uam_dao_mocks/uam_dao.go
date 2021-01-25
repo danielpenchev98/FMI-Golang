@@ -5,7 +5,7 @@
 package uam_dao_mocks
 
 import (
-	models "example.com/user/web-server/internal/db/models"
+	models "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/models"
 	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
 )

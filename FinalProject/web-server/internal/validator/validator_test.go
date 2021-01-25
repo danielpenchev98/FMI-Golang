@@ -1,7 +1,7 @@
 package validator_test
 
 import (
-	. "example.com/user/web-server/pkg/validator"
+	. "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/validator"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -11,7 +11,7 @@ var _ = Describe("Validator", func() {
 	var validator Validator
 
 	BeforeEach(func() {
-		validator = NewValidator()
+		validator = NewBasicValidator()
 	})
 
 	Describe("username validation", func() {

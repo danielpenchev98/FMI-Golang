@@ -4,12 +4,12 @@ import (
 	"log"
 	"net/http"
 
-	"example.com/user/web-server/api/common"
-	"example.com/user/web-server/api/common/response"
-	"example.com/user/web-server/internal/auth"
-	"example.com/user/web-server/internal/db/dao"
-	myerr "example.com/user/web-server/internal/error"
-	val "example.com/user/web-server/internal/validator"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common/response"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/dao"
+	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
+	val "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/validator"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -22,7 +22,7 @@ type UamEndpoint interface {
 
 	CreateGroup(*gin.Context)
 	AddMember(*gin.Context)
-	RovokeMembership(*gin.Context)
+	RevokeMembership(*gin.Context)
 }
 
 //UamEndpointImpl - implementation of UamEndpoint
@@ -49,6 +49,15 @@ type RequestWithCredentials struct {
 type LoginResponse struct {
 	Status int    `json:"status"`
 	Token  string `json:"token"`
+}
+
+type GroupCreationRequest struct {
+	GroupName string `json:"group_name"`
+}
+
+type GroupMembershipRequest struct {
+	GroupName string `json:"group_name"`
+	Username  string `json:"username"`
 }
 
 //NewUamEndPointImpl - function for creation an instance of UamEndpointImpl
@@ -157,10 +166,6 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 	})
 }
 
-type GroupCreationRequest struct {
-	GroupName string `json:"group_name"`
-}
-
 func (e *UamEndpointImpl) CreateGroup(c *gin.Context) {
 	id, ok := c.Get("userID")
 	if !ok {
@@ -197,11 +202,6 @@ func (e *UamEndpointImpl) CreateGroup(c *gin.Context) {
 	c.JSON(http.StatusCreated, response.BasicResponse{
 		Status: http.StatusCreated,
 	})
-}
-
-type GroupMembershipRequest struct {
-	GroupName string `json:"group_name"`
-	Username  string `json:"username"`
 }
 
 func (e *UamEndpointImpl) AddMember(c *gin.Context) {
@@ -244,7 +244,7 @@ func (e *UamEndpointImpl) AddMember(c *gin.Context) {
 	})
 }
 
-func (e *UamEndpointImpl) RovokeMembership(c *gin.Context) {
+func (e *UamEndpointImpl) RevokeMembership(c *gin.Context) {
 	id, ok := c.Get("userID")
 	if !ok {
 		log.Println("Problem retieval of userID from context.")

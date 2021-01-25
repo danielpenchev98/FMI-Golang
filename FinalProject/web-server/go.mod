@@ -1,4 +1,4 @@
-module example.com/user/web-server
+module github.com/danielpenchev98/FMI-Golang/FinalProject/web-server
 
 go 1.15
 

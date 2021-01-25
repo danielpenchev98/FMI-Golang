@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	myerr "example.com/user/web-server/internal/error"
+	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
 	jwt "github.com/dgrijalva/jwt-go"
 )
 
@@ -94,6 +94,6 @@ func (j *JwtCreatorImpl) ValidateToken(signedToken string) (*JwtClaim, error) {
 		return nil, myerr.NewClientError("Invalid Token. Please login again.")
 	}
 
-	claims, _ := token.Claims.(*JwtClaim)	
+	claims, _ := token.Claims.(*JwtClaim)
 	return claims, nil
 }
