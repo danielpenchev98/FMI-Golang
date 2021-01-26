@@ -73,7 +73,7 @@ func NewUamEndPointImpl(uamDAO dao.UamDAO, creator auth.JwtCreator, validator va
 }
 
 //Maybe the while validation procedure to be encapsualted in the registrationvalidator???
-//CreateUser - handler of request for creation of new user
+//CreateUser - handler for user creation request
 func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 	var rq RequestWithCredentials
 
@@ -106,7 +106,7 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 	})
 }
 
-//DeleteUser - handler for request of deletetion of user
+//DeleteUser - handler for user deletion request
 func (e *UamEndpointImpl) DeleteUser(c *gin.Context) { //Not tested yet -> gin.Context cannot be mocked
 	userID, err := getIDFromContext(c)
 	if err != nil {
@@ -124,7 +124,7 @@ func (e *UamEndpointImpl) DeleteUser(c *gin.Context) { //Not tested yet -> gin.C
 	})
 }
 
-//Login - handler for request of login of user
+//Login - handler for user login request
 func (e *UamEndpointImpl) Login(c *gin.Context) {
 	var request RequestWithCredentials
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -162,6 +162,7 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 	})
 }
 
+//CreateGroup - handler for group creation request
 func (e *UamEndpointImpl) CreateGroup(c *gin.Context) {
 	userID, err := getIDFromContext(c)
 	if err != nil {
@@ -193,6 +194,7 @@ func (e *UamEndpointImpl) CreateGroup(c *gin.Context) {
 	})
 }
 
+//AddMember - handler for membership creation request
 func (e *UamEndpointImpl) AddMember(c *gin.Context) {
 	userID, err := getIDFromContext(c)
 	if err != nil {
@@ -216,6 +218,7 @@ func (e *UamEndpointImpl) AddMember(c *gin.Context) {
 	})
 }
 
+//RevokeMembership - handler for membership deletion request
 func (e *UamEndpointImpl) RevokeMembership(c *gin.Context) {
 	userID, err := getIDFromContext(c)
 	if err != nil {
@@ -239,6 +242,7 @@ func (e *UamEndpointImpl) RevokeMembership(c *gin.Context) {
 	})
 }
 
+//DeleteGroup - handler for group deletion request
 func (e *UamEndpointImpl) DeleteGroup(c *gin.Context) {
 	userID, err := getIDFromContext(c)
 	if err != nil {
