@@ -27,15 +27,19 @@ func setupRouter(uamRest rest.UamEndpoint, userID uint) *gin.Engine {
 
 	public := r.Group("/public")
 	{
-		public.POST("/registration", uamRest.CreateUser)
-		public.POST("/login", uamRest.Login)
+		public.POST("/user/registration", uamRest.CreateUser)
+		public.POST("/user/login", uamRest.Login)
 	}
 	protected := r.Group("/protected").Use(func(c *gin.Context) {
 		c.Set("userID", userID)
 		c.Next()
-	}) // check how to do it
+	})
 	{
-		protected.DELETE("/deletion", uamRest.DeleteUser)
+		protected.DELETE("/user/deletion", uamRest.DeleteUser)
+		protected.DELETE("/group/deletion", uamRest.DeleteGroup)
+		protected.POST("/group/creation", uamRest.CreateGroup)
+		protected.POST("/group/membership/revocation", uamRest.RevokeMembership)
+		protected.POST("/group/membership/invitation", uamRest.AddMember)
 	}
 	return r
 }
@@ -58,7 +62,12 @@ var _ = Describe("UamEndpoint", func() {
 		req        *http.Request
 	)
 
-	const userID = 1
+	const (
+		username  = "username"
+		password  = "password"
+		userID    = 1
+		groupName = "groupName"
+	)
 
 	BeforeEach(func() {
 		controller := gomock.NewController(GinkgoT())
@@ -74,11 +83,6 @@ var _ = Describe("UamEndpoint", func() {
 	Context("CreateUser", func() {
 		When("creation request is sent", func() {
 			var reqBody *rest.RequestWithCredentials
-
-			const (
-				username = "username"
-				password = "password"
-			)
 
 			BeforeEach(func() {
 				reqBody = &rest.RequestWithCredentials{
@@ -102,7 +106,7 @@ var _ = Describe("UamEndpoint", func() {
 						CreateUser(gomock.Any(), gomock.Any()).
 						Times(0)
 
-					req, _ = http.NewRequest("POST", "/public/registration", strings.NewReader("test"))
+					req, _ = http.NewRequest("POST", "/public/user/registration", strings.NewReader("test"))
 				})
 
 				It("returns bad request", func() {
@@ -115,7 +119,7 @@ var _ = Describe("UamEndpoint", func() {
 
 				BeforeEach(func() {
 					jsonBody, _ := json.Marshal(*reqBody)
-					req, _ = http.NewRequest("POST", "/public/registration", bytes.NewBuffer(jsonBody))
+					req, _ = http.NewRequest("POST", "/public/user/registration", bytes.NewBuffer(jsonBody))
 					req.Header.Set("Content-Type", "application/json")
 				})
 
@@ -267,7 +271,7 @@ var _ = Describe("UamEndpoint", func() {
 						GenerateToken(gomock.Any()).
 						Times(0)
 
-					req, _ = http.NewRequest("POST", "/public/login", strings.NewReader("test"))
+					req, _ = http.NewRequest("POST", "/public/user/login", strings.NewReader("test"))
 				})
 
 				It("returns bad request", func() {
@@ -279,7 +283,7 @@ var _ = Describe("UamEndpoint", func() {
 			Context("with json body", func() {
 				BeforeEach(func() {
 					jsonBody, _ := json.Marshal(*reqBody)
-					req, _ = http.NewRequest("POST", "/public/login", bytes.NewBuffer(jsonBody))
+					req, _ = http.NewRequest("POST", "/public/user/login", bytes.NewBuffer(jsonBody))
 					req.Header.Set("Content-Type", "application/json")
 				})
 
@@ -407,7 +411,7 @@ var _ = Describe("UamEndpoint", func() {
 		When("login request is sent and authentication passes", func() {
 
 			BeforeEach(func() {
-				req, _ = http.NewRequest("DELETE", "/protected/deletion", nil)
+				req, _ = http.NewRequest("DELETE", "/protected/user/deletion", nil)
 				req.Header.Set("Authorization", "Bearer sometoken")
 			})
 
@@ -455,6 +459,352 @@ var _ = Describe("UamEndpoint", func() {
 					})
 				})
 
+			})
+		})
+	})
+
+	Context("CreateGroup", func() {
+		When("login request is sent and authentication passes", func() {
+			Context("with non-json body", func() {
+
+				BeforeEach(func() {
+					validator.EXPECT().
+						ValidateUsername(username).
+						Times(0)
+
+					uamDAO.EXPECT().
+						CreateGroup(gomock.Any(), gomock.Any()).
+						Times(0)
+
+					req, _ = http.NewRequest("POST", "/protected/group/creation", strings.NewReader("test"))
+				})
+
+				It("returns bad request", func() {
+					router.ServeHTTP(recorder, req)
+					assertErrorResponse(recorder, http.StatusBadRequest, "Invalid json body")
+				})
+			})
+
+			Context("with json body", func() {
+				var rqBody rest.GroupPayload
+
+				BeforeEach(func() {
+					rqBody = rest.GroupPayload{GroupName: groupName}
+					jsonBody, _ := json.Marshal(&rqBody)
+					req, _ = http.NewRequest("POST", "/protected/group/creation", bytes.NewBuffer(jsonBody))
+					req.Header.Set("Authorization", "Bearer sometoken")
+				})
+
+				Context("and group name fails the validation", func() {
+					BeforeEach(func() {
+						validator.EXPECT().
+							ValidateUsername(rqBody.GroupName).
+							Return(myerr.NewClientError("test-error"))
+
+						uamDAO.EXPECT().
+							CreateGroup(gomock.Any(), gomock.Any()).
+							Times(0)
+					})
+
+					It("return bad request", func() {
+						router.ServeHTTP(recorder, req)
+						assertErrorResponse(recorder, http.StatusBadRequest, "test-error")
+					})
+
+				})
+
+				Context("and group name passes the validation", func() {
+					Context("and operation of creation group from db fails", func() {
+						Context("because connection to db fails", func() {
+							BeforeEach(func() {
+								gomock.InOrder(
+									validator.EXPECT().
+										ValidateUsername(rqBody.GroupName).
+										Return(nil),
+									uamDAO.EXPECT().
+										CreateGroup(uint(userID), rqBody.GroupName).
+										Return(myerr.NewServerError("test-error")),
+								)
+							})
+
+							It("returns internal server error response", func() {
+								router.ServeHTTP(recorder, req)
+								assertErrorResponse(recorder, http.StatusInternalServerError, "Problem with the server, please try again later")
+							})
+						})
+
+						Context("because group already exists", func() {
+							BeforeEach(func() {
+								gomock.InOrder(
+									validator.EXPECT().
+										ValidateUsername(rqBody.GroupName).
+										Return(nil),
+									uamDAO.EXPECT().
+										CreateGroup(uint(userID), rqBody.GroupName).
+										Return(myerr.NewClientError("test-error")),
+								)
+							})
+
+							It("returns internal server error response", func() {
+								router.ServeHTTP(recorder, req)
+								assertErrorResponse(recorder, http.StatusBadRequest, "test-error")
+							})
+						})
+
+					})
+
+					Context("and operation of creating group from db suceeeds", func() {
+						BeforeEach(func() {
+							gomock.InOrder(
+								validator.EXPECT().
+									ValidateUsername(rqBody.GroupName).
+									Return(nil),
+								uamDAO.EXPECT().
+									CreateGroup(uint(userID), rqBody.GroupName).
+									Return(nil),
+							)
+						})
+
+						It("returns Created", func() {
+							router.ServeHTTP(recorder, req)
+
+							Expect(recorder.Code).To(Equal(http.StatusCreated))
+							body := response.BasicResponse{}
+							json.Unmarshal([]byte(recorder.Body.String()), &body)
+							Expect(body.Status).To(Equal(http.StatusCreated))
+						})
+					})
+				})
+			})
+		})
+	})
+
+	Context("AddMember", func() {
+		When("request a user to be added to group is sent and authentication passes", func() {
+			Context("with non-json body", func() {
+
+				BeforeEach(func() {
+					uamDAO.EXPECT().
+						AddUserToGroup(uint(userID), username, groupName).
+						Times(0)
+
+					req, _ = http.NewRequest("POST", "/protected/group/membership/invitation", strings.NewReader("test"))
+				})
+
+				It("returns bad request", func() {
+					router.ServeHTTP(recorder, req)
+					assertErrorResponse(recorder, http.StatusBadRequest, "Invalid json body")
+				})
+			})
+
+			Context("with json body", func() {
+				var rqBody rest.GroupMembershipPayload
+
+				BeforeEach(func() {
+					rqBody = rest.GroupMembershipPayload{Username: username}
+					rqBody.GroupName = groupName
+					jsonBody, _ := json.Marshal(&rqBody)
+					req, _ = http.NewRequest("POST", "/protected/group/membership/invitation", bytes.NewBuffer(jsonBody))
+					req.Header.Set("Authorization", "Bearer sometoken")
+				})
+
+				Context("and membership creation fails", func() {
+					Context("and request fails due to problem with the server", func() {
+						BeforeEach(func() {
+							uamDAO.EXPECT().
+								AddUserToGroup(uint(userID), username, groupName).
+								Return(myerr.NewServerError("some-error"))
+						})
+
+						It("returns internal server error", func() {
+							router.ServeHTTP(recorder, req)
+							assertErrorResponse(recorder, http.StatusInternalServerError, "Problem with the server, please try again later")
+						})
+					})
+
+					Context("and username or group doesnt exist", func() {
+						BeforeEach(func() {
+							uamDAO.EXPECT().
+								AddUserToGroup(uint(userID), username, groupName).
+								Return(myerr.NewClientError("some-error"))
+						})
+
+						It("returns bad request", func() {
+							router.ServeHTTP(recorder, req)
+							assertErrorResponse(recorder, http.StatusBadRequest, "some-error")
+						})
+					})
+				})
+
+				Context("and membership creation succeeds", func() {
+					BeforeEach(func() {
+						uamDAO.EXPECT().
+							AddUserToGroup(uint(userID), username, groupName).
+							Return(nil)
+					})
+
+					It("returns created", func() {
+						router.ServeHTTP(recorder, req)
+
+						Expect(recorder.Code).To(Equal(http.StatusCreated))
+						body := response.BasicResponse{}
+						json.Unmarshal([]byte(recorder.Body.String()), &body)
+						Expect(body.Status).To(Equal(http.StatusCreated))
+					})
+				})
+			})
+		})
+	})
+
+	Context("RevokeMembership", func() {
+		When("request a user to be added to group is sent and authentication passes", func() {
+			Context("with non-json body", func() {
+
+				BeforeEach(func() {
+					uamDAO.EXPECT().
+						RemoveUserFromGroup(uint(userID), username, groupName).
+						Times(0)
+
+					req, _ = http.NewRequest("POST", "/protected/group/membership/revocation", strings.NewReader("test"))
+				})
+
+				It("returns bad request", func() {
+					router.ServeHTTP(recorder, req)
+					assertErrorResponse(recorder, http.StatusBadRequest, "Invalid json body")
+				})
+			})
+
+			Context("with json body", func() {
+				var rqBody rest.GroupMembershipPayload
+
+				BeforeEach(func() {
+					rqBody = rest.GroupMembershipPayload{Username: username}
+					rqBody.GroupName = groupName
+					jsonBody, _ := json.Marshal(&rqBody)
+					req, _ = http.NewRequest("POST", "/protected/group/membership/revocation", bytes.NewBuffer(jsonBody))
+					req.Header.Set("Authorization", "Bearer sometoken")
+				})
+
+				Context("and membership deletion fails", func() {
+					Context("and request fails due to problem with the server", func() {
+						BeforeEach(func() {
+							uamDAO.EXPECT().
+								RemoveUserFromGroup(uint(userID), username, groupName).
+								Return(myerr.NewServerError("some-error"))
+						})
+
+						It("returns internal server error", func() {
+							router.ServeHTTP(recorder, req)
+							assertErrorResponse(recorder, http.StatusInternalServerError, "Problem with the server, please try again later")
+						})
+					})
+
+					Context("and username or group doesnt exist", func() {
+						BeforeEach(func() {
+							uamDAO.EXPECT().
+								RemoveUserFromGroup(uint(userID), username, groupName).
+								Return(myerr.NewClientError("some-error"))
+						})
+
+						It("returns bad request", func() {
+							router.ServeHTTP(recorder, req)
+							assertErrorResponse(recorder, http.StatusBadRequest, "some-error")
+						})
+					})
+				})
+
+				Context("and membership deletion succeeds", func() {
+					BeforeEach(func() {
+						uamDAO.EXPECT().
+							RemoveUserFromGroup(uint(userID), username, groupName).
+							Return(nil)
+					})
+
+					It("returns created", func() {
+						router.ServeHTTP(recorder, req)
+
+						Expect(recorder.Code).To(Equal(http.StatusOK))
+						body := response.BasicResponse{}
+						json.Unmarshal([]byte(recorder.Body.String()), &body)
+						Expect(body.Status).To(Equal(http.StatusOK))
+					})
+				})
+			})
+		})
+	})
+
+	Context("DeleteGroup", func() {
+		When("request a user to be added to group is sent and authentication passes", func() {
+			Context("with non-json body", func() {
+
+				BeforeEach(func() {
+					uamDAO.EXPECT().
+						DeleteGroup(uint(userID), groupName).
+						Times(0)
+
+					req, _ = http.NewRequest("DELETE", "/protected/group/deletion", strings.NewReader("test"))
+				})
+
+				It("returns bad request", func() {
+					router.ServeHTTP(recorder, req)
+					assertErrorResponse(recorder, http.StatusBadRequest, "Invalid json body")
+				})
+			})
+
+			Context("with json body", func() {
+				var rqBody rest.GroupPayload
+
+				BeforeEach(func() {
+					rqBody = rest.GroupPayload{GroupName: groupName}
+					jsonBody, _ := json.Marshal(&rqBody)
+					req, _ = http.NewRequest("DELETE", "/protected/group/deletion", bytes.NewBuffer(jsonBody))
+					req.Header.Set("Authorization", "Bearer sometoken")
+				})
+
+				Context("and membership deletion fails", func() {
+					Context("and request fails due to problem with the server", func() {
+						BeforeEach(func() {
+							uamDAO.EXPECT().
+								DeleteGroup(uint(userID), groupName).
+								Return(myerr.NewServerError("some-error"))
+						})
+
+						It("returns internal server error", func() {
+							router.ServeHTTP(recorder, req)
+							assertErrorResponse(recorder, http.StatusInternalServerError, "Problem with the server, please try again later")
+						})
+					})
+
+					Context("and username or group doesnt exist or user doesnt have required permissions", func() {
+						BeforeEach(func() {
+							uamDAO.EXPECT().
+								DeleteGroup(uint(userID), groupName).
+								Return(myerr.NewClientError("some-error"))
+						})
+
+						It("returns bad request", func() {
+							router.ServeHTTP(recorder, req)
+							assertErrorResponse(recorder, http.StatusBadRequest, "some-error")
+						})
+					})
+				})
+
+				Context("and membership deletion succeeds", func() {
+					BeforeEach(func() {
+						uamDAO.EXPECT().
+							DeleteGroup(uint(userID), groupName).
+							Return(nil)
+					})
+
+					It("returns created", func() {
+						router.ServeHTTP(recorder, req)
+
+						Expect(recorder.Code).To(Equal(http.StatusOK))
+						body := response.BasicResponse{}
+						json.Unmarshal([]byte(recorder.Body.String()), &body)
+						Expect(body.Status).To(Equal(http.StatusOK))
+					})
+				})
 			})
 		})
 	})

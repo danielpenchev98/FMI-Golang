@@ -22,6 +22,7 @@ type UamDAO interface {
 	CreateGroup(uint, string) error
 	AddUserToGroup(uint, string, string) error
 	RemoveUserFromGroup(uint, string, string) error
+	DeleteGroup(uint, string) error
 }
 
 //UamDAOImpl - implementation of UamDAO
@@ -194,6 +195,35 @@ func (d *UamDAOImpl) AddUserToGroup(ownerID uint, username string, groupName str
 	})
 }
 
+//DeleteGroup - removes the group and all its resources(for instance - memberships)
+func (d *UamDAOImpl) DeleteGroup(currUserID uint, groupName string) error {
+	return d.dbConn.Transaction(func(tx *gorm.DB) error {
+		group, err := getGroupWithConn(tx, groupName)
+		if err != nil {
+			return err
+		} else if group.OwnerID != currUserID {
+			return myerr.NewClientError("Only the group owner can delete the group")
+		}
+
+		log.Printf("Revolking membership for users in group [%s]", groupName)
+		result := tx.Table("memberships").
+			Where("group_id = ?", group.ID).Delete(&models.Membership{})
+		if result.Error != nil {
+			log.Printf("Problem with membership revolkes for group [%s]\n", groupName)
+			return myerr.NewServerErrorWrap(result.Error, "Problem with deletion of memberships")
+		}
+		log.Printf("Revolked membership for users in group [%s]", groupName)
+
+		log.Printf("Deleting group [%s]\n", groupName)
+		if result = tx.Delete(&group); result.Error != nil {
+			log.Printf("Problem with the deletion of group [%s]\n", groupName)
+			return myerr.NewServerErrorWrap(result.Error, "Problem with deletion of the group")
+		}
+		log.Printf("Group [%s] deleted\n", groupName)
+		return nil
+	})
+}
+
 //RemoveUserFromGroup - removes a membership of a user to a specific group
 func (d *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, groupName string) error {
 	return d.dbConn.Transaction(func(tx *gorm.DB) error {
@@ -215,26 +245,23 @@ func (d *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, group
 
 		if group.OwnerID != currUserID && user.ID != currUserID {
 			return myerr.NewClientError("Only the owner of the group can revoke membership of other members")
+		} else if group.OwnerID == currUserID && user.ID == currUserID {
+			return myerr.NewClientError("The owner cannot remove its own membership. Yet to be added this functionality")
 		}
 
-		membership := models.Membership{
-			GroupID: group.ID,
-			UserID:  user.ID,
-		}
-
-		log.Printf("Revolking membership for user with id [%d] in group with id [%d]", membership.UserID, membership.GroupID)
+		log.Printf("Revolking membership for user with id [%d] in group with id [%d]", user.ID, group.ID)
 		result := tx.Where("user_id = ?", user.ID).
 			Where("group_id = ?", group.ID).
-			Delete(&membership)
+			Delete(&models.Membership{})
 
 		if result.Error != nil {
 			log.Printf("Problem with the request to revoke membership for user with id [%d] in group with id [%d] in the database. Reason: %v\n",
-				membership.GroupID, membership.UserID, result.Error)
+				group.ID, user.ID, result.Error)
 			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of new membership")
 		} else if result.RowsAffected == 0 {
 			return myerr.NewClientError("Membership not found")
 		}
-		log.Printf("Membership for user with id [%d] in group id [%d] is revoked", membership.UserID, membership.GroupID)
+		log.Printf("Membership for user with id [%d] in group id [%d] is revoked", user.ID, group.ID)
 
 		return nil
 	})
