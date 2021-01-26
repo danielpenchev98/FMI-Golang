@@ -52,11 +52,13 @@ type LoginResponse struct {
 	Token  string `json:"token"`
 }
 
+//GroupPayload - request payload, containing the group name
 type GroupPayload struct {
 	GroupName string `json:"group_name"`
 }
 
-type GroupMembershipRequest struct {
+//GroupMembershipPayload - request payload, containing the group name and username
+type GroupMembershipPayload struct {
 	GroupPayload
 	Username string `json:"username"`
 }
@@ -197,7 +199,7 @@ func (e *UamEndpointImpl) AddMember(c *gin.Context) {
 		common.SendErrorResponse(c, err)
 	}
 
-	var rq GroupMembershipRequest
+	var rq GroupMembershipPayload
 	if err := c.ShouldBindJSON(&rq); err != nil {
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
@@ -220,7 +222,7 @@ func (e *UamEndpointImpl) RevokeMembership(c *gin.Context) {
 		common.SendErrorResponse(c, err)
 	}
 
-	var rq GroupMembershipRequest
+	var rq GroupMembershipPayload
 	if err := c.ShouldBindJSON(&rq); err != nil {
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return

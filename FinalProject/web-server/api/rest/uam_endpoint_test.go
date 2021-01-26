@@ -598,10 +598,10 @@ var _ = Describe("UamEndpoint", func() {
 			})
 
 			Context("with json body", func() {
-				var rqBody rest.GroupMembershipRequest
+				var rqBody rest.GroupMembershipPayload
 
 				BeforeEach(func() {
-					rqBody = rest.GroupMembershipRequest{Username: username}
+					rqBody = rest.GroupMembershipPayload{Username: username}
 					rqBody.GroupName = groupName
 					jsonBody, _ := json.Marshal(&rqBody)
 					req, _ = http.NewRequest("POST", "/protected/group/membership/invitation", bytes.NewBuffer(jsonBody))
@@ -675,10 +675,10 @@ var _ = Describe("UamEndpoint", func() {
 			})
 
 			Context("with json body", func() {
-				var rqBody rest.GroupMembershipRequest
+				var rqBody rest.GroupMembershipPayload
 
 				BeforeEach(func() {
-					rqBody = rest.GroupMembershipRequest{Username: username}
+					rqBody = rest.GroupMembershipPayload{Username: username}
 					rqBody.GroupName = groupName
 					jsonBody, _ := json.Marshal(&rqBody)
 					req, _ = http.NewRequest("POST", "/protected/group/membership/revocation", bytes.NewBuffer(jsonBody))
