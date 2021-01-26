@@ -23,6 +23,7 @@ type UamEndpoint interface {
 	CreateGroup(*gin.Context)
 	AddMember(*gin.Context)
 	RevokeMembership(*gin.Context)
+	DeleteGroup(*gin.Context)
 }
 
 //UamEndpointImpl - implementation of UamEndpoint
@@ -51,13 +52,13 @@ type LoginResponse struct {
 	Token  string `json:"token"`
 }
 
-type GroupCreationRequest struct {
+type GroupPayload struct {
 	GroupName string `json:"group_name"`
 }
 
 type GroupMembershipRequest struct {
-	GroupName string `json:"group_name"`
-	Username  string `json:"username"`
+	GroupPayload
+	Username string `json:"username"`
 }
 
 //NewUamEndPointImpl - function for creation an instance of UamEndpointImpl
@@ -105,19 +106,12 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 
 //DeleteUser - handler for request of deletetion of user
 func (e *UamEndpointImpl) DeleteUser(c *gin.Context) { //Not tested yet -> gin.Context cannot be mocked
-	id, ok := c.Get("userID")
-	if !ok {
-		log.Println("Problem retieval of userID from context.")
-		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
-		return
+	userID, err := getIDFromContext(c)
+	if err != nil {
+		common.SendErrorResponse(c, err)
 	}
 
-	var userID uint
-	if userID, ok = id.(uint); !ok {
-		common.SendErrorResponse(c, myerr.NewClientError("Invalid user ID"))
-	}
-
-	if err := e.uamDAO.DeleteUser(uint(userID)); err != nil {
+	if err = e.uamDAO.DeleteUser(uint(userID)); err != nil {
 		log.Printf("Problem with deletion of user. Reason: %v\n", err)
 		common.SendErrorResponse(c, myerr.NewServerErrorWrap(err, "Problem with deleting user"))
 		return
@@ -167,33 +161,26 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 }
 
 func (e *UamEndpointImpl) CreateGroup(c *gin.Context) {
-	id, ok := c.Get("userID")
-	if !ok {
-		log.Println("Problem retieval of userID from context.")
-		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
-		return
+	userID, err := getIDFromContext(c)
+	if err != nil {
+		common.SendErrorResponse(c, err)
 	}
 
-	var userID uint
-	if userID, ok = id.(uint); !ok {
-		common.SendErrorResponse(c, myerr.NewClientError("Invalid user ID"))
-	}
-
-	var rq GroupCreationRequest
+	var rq GroupPayload
 	if err := c.ShouldBindJSON(&rq); err != nil {
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
 	}
 
 	//TODO should rename this function - maybe? or create specific function for the group name
-	if err := e.validator.ValidateUsername(rq.GroupName); err != nil {
+	if err = e.validator.ValidateUsername(rq.GroupName); err != nil {
 		err = myerr.NewClientErrorWrap(err, "Problem with the group name")
 		log.Printf("Problem with validation of the user registration input. Reason: %v\n", err)
 		common.SendErrorResponse(c, err)
 		return
 	}
 
-	if err := e.uamDAO.CreateGroup(userID, rq.GroupName); err != nil {
+	if err = e.uamDAO.CreateGroup(userID, rq.GroupName); err != nil {
 		log.Printf("Problem with creation of group. Reason: %v\n", err)
 		common.SendErrorResponse(c, err)
 		return
@@ -205,16 +192,9 @@ func (e *UamEndpointImpl) CreateGroup(c *gin.Context) {
 }
 
 func (e *UamEndpointImpl) AddMember(c *gin.Context) {
-	id, ok := c.Get("userID")
-	if !ok {
-		log.Println("Problem retieval of userID from context.")
-		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
-		return
-	}
-
-	var userID uint
-	if userID, ok = id.(uint); !ok {
-		common.SendErrorResponse(c, myerr.NewClientError("Invalid user ID"))
+	userID, err := getIDFromContext(c)
+	if err != nil {
+		common.SendErrorResponse(c, err)
 	}
 
 	var rq GroupMembershipRequest
@@ -223,17 +203,7 @@ func (e *UamEndpointImpl) AddMember(c *gin.Context) {
 		return
 	}
 
-	//TODO should rename this function - maybe? or create specific function for the group name
-	if err := e.validator.ValidateUsername(rq.GroupName); err != nil {
-		err = myerr.NewClientErrorWrap(err, "Problem with the group name")
-		common.SendErrorResponse(c, err)
-		return
-	} else if err = e.validator.ValidateUsername(rq.Username); err != nil {
-		common.SendErrorResponse(c, err)
-		return
-	}
-
-	if err := e.uamDAO.AddUserToGroup(userID, rq.Username, rq.GroupName); err != nil {
+	if err = e.uamDAO.AddUserToGroup(userID, rq.Username, rq.GroupName); err != nil {
 		log.Printf("Problem with creation of group. Reason: %v\n", err)
 		common.SendErrorResponse(c, err)
 		return
@@ -245,16 +215,9 @@ func (e *UamEndpointImpl) AddMember(c *gin.Context) {
 }
 
 func (e *UamEndpointImpl) RevokeMembership(c *gin.Context) {
-	id, ok := c.Get("userID")
-	if !ok {
-		log.Println("Problem retieval of userID from context.")
-		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
-		return
-	}
-
-	var userID uint
-	if userID, ok = id.(uint); !ok {
-		common.SendErrorResponse(c, myerr.NewClientError("Invalid user ID"))
+	userID, err := getIDFromContext(c)
+	if err != nil {
+		common.SendErrorResponse(c, err)
 	}
 
 	var rq GroupMembershipRequest
@@ -263,17 +226,7 @@ func (e *UamEndpointImpl) RevokeMembership(c *gin.Context) {
 		return
 	}
 
-	//TODO should rename this function - maybe? or create specific function for the group name
-	if err := e.validator.ValidateUsername(rq.GroupName); err != nil {
-		err = myerr.NewClientErrorWrap(err, "Problem with the group name")
-		common.SendErrorResponse(c, err)
-		return
-	} else if err = e.validator.ValidateUsername(rq.Username); err != nil {
-		common.SendErrorResponse(c, err)
-		return
-	}
-
-	if err := e.uamDAO.RemoveUserFromGroup(userID, rq.Username, rq.GroupName); err != nil {
+	if err = e.uamDAO.RemoveUserFromGroup(userID, rq.Username, rq.GroupName); err != nil {
 		log.Printf("Problem with membership revoke. Reason: %v\n", err)
 		common.SendErrorResponse(c, err)
 		return
@@ -284,30 +237,19 @@ func (e *UamEndpointImpl) RevokeMembership(c *gin.Context) {
 	})
 }
 
-type GroupDeletionRequest struct{
-	GroupName string `json:"group_name"`
-}
-
-func (e *UamEndpointImpl) DeleteGroup(c *gin.Context){
-	id, ok := c.Get("userID")
-	if !ok {
-		log.Println("Problem retieval of userID from context.")
-		common.SendErrorResponse(c, myerr.NewServerError("Cannot retrieve the user id"))
-		return
+func (e *UamEndpointImpl) DeleteGroup(c *gin.Context) {
+	userID, err := getIDFromContext(c)
+	if err != nil {
+		common.SendErrorResponse(c, err)
 	}
 
-	var userID uint
-	if userID, ok = id.(uint); !ok {
-		common.SendErrorResponse(c, myerr.NewClientError("Invalid user ID"))
-	}
-
-	var rq GroupDeletionRequest
-	if err := c.ShouldBindJSON(&rq); err != nil {
+	var rq GroupPayload
+	if err = c.ShouldBindJSON(&rq); err != nil {
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
 	}
 
-	if err := e.uamDAO.DeleteGroup(userID, rq.GroupName); err != nil {
+	if err = e.uamDAO.DeleteGroup(userID, rq.GroupName); err != nil {
 		log.Printf("Problem with deletion of group. Reason: %v\n", err)
 		common.SendErrorResponse(c, err)
 		return
@@ -327,4 +269,18 @@ func validateRegistration(validator val.Validator, rq RequestWithCredentials) er
 		return myerr.NewClientErrorWrap(err, "Problem with the password")
 	}
 	return nil
+}
+
+func getIDFromContext(c *gin.Context) (uint, error) {
+	id, ok := c.Get("userID")
+	if !ok {
+		log.Println("Problem retieval of userID from context.")
+		return 0, myerr.NewServerError("Cannot retrieve the user id")
+	}
+
+	var userID uint
+	if userID, ok = id.(uint); !ok {
+		return 0, myerr.NewClientError("Invalid user ID")
+	}
+	return userID, nil
 }
