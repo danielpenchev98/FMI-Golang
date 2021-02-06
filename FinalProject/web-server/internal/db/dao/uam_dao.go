@@ -18,11 +18,12 @@ type UamDAO interface {
 	CreateUser(string, string) error
 	GetUser(string) (models.User, error)
 	DeleteUser(uint) error
-
 	CreateGroup(uint, string) error
 	AddUserToGroup(uint, string, string) error
 	RemoveUserFromGroup(uint, string, string) error
+	MemberExists(uint, uint) (bool, error)
 	DeleteGroup(uint, string) error
+	GetGroup(string) (models.Group, error)
 }
 
 //UamDAOImpl - implementation of UamDAO
@@ -35,6 +36,7 @@ func NewUamDAOImpl(dbConn *gorm.DB) *UamDAOImpl {
 	return &UamDAOImpl{dbConn: dbConn}
 }
 
+//Migrate - function which updates the models(table structure) in db
 func (d *UamDAOImpl) Migrate() error {
 	return d.dbConn.AutoMigrate(models.User{}, models.Group{}, models.Membership{})
 }
@@ -43,10 +45,9 @@ func (d *UamDAOImpl) Migrate() error {
 func (d *UamDAOImpl) CreateUser(username string, password string) error {
 	return d.dbConn.Transaction(func(tx *gorm.DB) error {
 		var count int64
-		result := tx.Table("users").Where("username = ?", username).Count(&count)
+		result := d.dbConn.Table("users").Where("username = ?", username).Count(&count)
 
 		if result.Error != nil {
-			log.Printf("Problem with request to check if user with username [%s] exists in the database. Reason: %v\n", username, result.Error)
 			return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup of users")
 		} else if count > 0 {
 			return myerr.NewClientError("A user with the same username exists")
@@ -59,7 +60,6 @@ func (d *UamDAOImpl) CreateUser(username string, password string) error {
 
 		log.Printf("Creating user with username [%s]", username)
 		if result := tx.Create(&user); result.Error != nil {
-			log.Printf("Problem with the request to create user with username [%s] in the database. Reason: %v\n", username, result.Error)
 			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of new user")
 		}
 		log.Printf("User with username [%s] created", username)
@@ -74,7 +74,6 @@ func (d *UamDAOImpl) DeleteUser(userID uint) error {
 	result := d.dbConn.Table("users").Where("id = ?", userID).Count(&count)
 
 	if result.Error != nil {
-		log.Printf("Couldnt search for a user with id [%d] in the database. Reason: %v\n", userID, result.Error)
 		return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup if user exists")
 	} else if count == 0 {
 		return myerr.NewItemNotFoundError("User with that id does not exist")
@@ -82,8 +81,7 @@ func (d *UamDAOImpl) DeleteUser(userID uint) error {
 
 	log.Printf("Deleting user with id [%d]\n", userID)
 	if result = d.dbConn.Delete(&models.User{}, userID); result.Error != nil {
-		log.Printf("Problem with the request to delete user with [%d] in the database. Reason: %v\n", userID, result.Error)
-		return myerr.NewServerErrorWrap(result.Error, "Problem with the deletion of the user")
+		return myerr.NewServerErrorWrap(result.Error, "Problem with the deletion of the user from db")
 	}
 	log.Printf("User with id [%d] is deleted\n", userID)
 
@@ -100,10 +98,9 @@ func (d *UamDAOImpl) GetUser(username string) (models.User, error) {
 func (d *UamDAOImpl) CreateGroup(userID uint, groupName string) error {
 	return d.dbConn.Transaction(func(tx *gorm.DB) error {
 		var count int64
-		result := tx.Table("groups").Where("name = ?", groupName).Count(&count)
 
+		result := tx.Table("groups").Where("name = ?", groupName).Count(&count)
 		if result.Error != nil {
-			log.Printf("Problem with request to check if group [%s] exists in the database. Reason: %v\n", groupName, result.Error)
 			return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup of groups")
 		} else if count > 0 {
 			return myerr.NewClientError("A group with the same name exists")
@@ -116,8 +113,7 @@ func (d *UamDAOImpl) CreateGroup(userID uint, groupName string) error {
 
 		log.Printf("Creating group [%s] with owner [%d]\n", groupName, userID)
 		if result := tx.Create(&group); result.Error != nil {
-			log.Printf("Problem with the request to create group [%s] with owner [%d] in the database. Reason: %v\n", groupName, userID, result.Error)
-			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of new group")
+			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of group [%s] in db")
 		}
 		log.Printf("Group with name [%s] and owner [%d] created\n", groupName, userID)
 
@@ -129,8 +125,7 @@ func (d *UamDAOImpl) CreateGroup(userID uint, groupName string) error {
 		//its usedless to check if the membership already exists, because basically the group is created in this transaction
 		log.Printf("Creating membership of user [%d] for group [%d]\n", userID, group.ID)
 		if result := tx.Create(&membership); result.Error != nil {
-			log.Printf("Problem with the request to create membership of user [%d] for group [%d] in the database. Reason: %v\n", userID, group.ID, result.Error)
-			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of membership")
+			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of membership in db")
 		}
 		log.Printf("Membership of user [%d] for group [%d] is created\n", userID, group.ID)
 
@@ -158,6 +153,8 @@ func (d *UamDAOImpl) AddUserToGroup(ownerID uint, username string, groupName str
 			return err
 		} else if group.OwnerID != ownerID {
 			return myerr.NewClientError("Only the group owner can add members to the group")
+		} else if !group.Active {
+			return myerr.NewClientError("The group is currently being deleted")
 		}
 
 		user, err = getUserWithConn(tx, username)
@@ -171,9 +168,7 @@ func (d *UamDAOImpl) AddUserToGroup(ownerID uint, username string, groupName str
 			Count(&count)
 
 		if result.Error != nil {
-			log.Printf("Problem with the request to check if membership for user with id [%d] in group with id [%d] exists in db. Reason: %v\n",
-				user.ID, group.ID, result.Error)
-			return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup of membership")
+			return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup of membership in db")
 		} else if count != 0 {
 			return myerr.NewClientError("The user is already a member of the group")
 		}
@@ -185,9 +180,7 @@ func (d *UamDAOImpl) AddUserToGroup(ownerID uint, username string, groupName str
 
 		log.Printf("Creating membership for user with id [%d] in group with id [%d]", membership.UserID, membership.GroupID)
 		if result := tx.Create(&membership); result.Error != nil {
-			log.Printf("Problem with the request to create membership for user with id [%d] in group with id [%d] in the database. Reason: %v\n",
-				membership.GroupID, membership.UserID, result.Error)
-			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of new membership")
+			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of new membership in db")
 		}
 		log.Printf("Membership for user with id [%d] in group id [%d] created", membership.UserID, membership.GroupID)
 
@@ -195,7 +188,7 @@ func (d *UamDAOImpl) AddUserToGroup(ownerID uint, username string, groupName str
 	})
 }
 
-//DeleteGroup - removes the group and all its resources(for instance - memberships)
+//DeleteGroup - deletes all memberships and changes the status of the group to non active
 func (d *UamDAOImpl) DeleteGroup(currUserID uint, groupName string) error {
 	return d.dbConn.Transaction(func(tx *gorm.DB) error {
 		group, err := getGroupWithConn(tx, groupName)
@@ -203,23 +196,23 @@ func (d *UamDAOImpl) DeleteGroup(currUserID uint, groupName string) error {
 			return err
 		} else if group.OwnerID != currUserID {
 			return myerr.NewClientError("Only the group owner can delete the group")
+		} else if !group.Active {
+			return myerr.NewClientError("The group is currently being deleted")
 		}
 
 		log.Printf("Revolking membership for users in group [%s]", groupName)
 		result := tx.Table("memberships").
 			Where("group_id = ?", group.ID).Delete(&models.Membership{})
 		if result.Error != nil {
-			log.Printf("Problem with membership revolkes for group [%s]\n", groupName)
-			return myerr.NewServerErrorWrap(result.Error, "Problem with deletion of memberships")
+			return myerr.NewServerErrorWrap(result.Error, "Problem with deletion of memberships in db")
 		}
 		log.Printf("Revolked membership for users in group [%s]", groupName)
 
-		log.Printf("Deleting group [%s]\n", groupName)
-		if result = tx.Delete(&group); result.Error != nil {
-			log.Printf("Problem with the deletion of group [%s]\n", groupName)
-			return myerr.NewServerErrorWrap(result.Error, "Problem with deletion of the group")
+		log.Printf("Change status of group [%s] to non active\n", groupName)
+		if result = tx.Model(&group).Update("active", false); result.Error != nil {
+			return myerr.NewServerErrorWrap(result.Error, "Problem with deletion of the group in db")
 		}
-		log.Printf("Group [%s] deleted\n", groupName)
+		log.Printf("Status of group [%s] is set to non active\n", groupName)
 		return nil
 	})
 }
@@ -233,9 +226,15 @@ func (d *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, group
 			err   error
 		)
 
+		/*
+			SHOULD THIS BISNESS LOGIC BE HERE AT ALL?????????????????/
+		*/
+
 		group, err = getGroupWithConn(tx, groupName)
 		if err != nil {
 			return err
+		} else if !group.Active {
+			return myerr.NewClientError("The group is currently being deleted")
 		}
 
 		user, err = getUserWithConn(tx, username)
@@ -255,9 +254,7 @@ func (d *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, group
 			Delete(&models.Membership{})
 
 		if result.Error != nil {
-			log.Printf("Problem with the request to revoke membership for user with id [%d] in group with id [%d] in the database. Reason: %v\n",
-				group.ID, user.ID, result.Error)
-			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of new membership")
+			return myerr.NewServerErrorWrap(result.Error, "Problem with the creation of new membership in db")
 		} else if result.RowsAffected == 0 {
 			return myerr.NewClientError("Membership not found")
 		}
@@ -265,6 +262,20 @@ func (d *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, group
 
 		return nil
 	})
+}
+
+//MemberExists - check if membership exists for a particular group
+func (d *UamDAOImpl) MemberExists(userID uint, groupID uint) (bool, error) {
+	var count int64
+	result := d.dbConn.Table("memberships").
+		Where("user_id = ?", userID).
+		Where("group_id = ?", groupID).
+		Count(&count)
+
+	if result.Error != nil {
+		return false, myerr.NewServerErrorWrap(result.Error, "Problem with check existance of membership")
+	}
+	return count != 0, nil
 }
 
 func getUserWithConn(dbConn *gorm.DB, username string) (models.User, error) {

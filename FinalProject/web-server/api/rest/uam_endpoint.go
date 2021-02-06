@@ -1,8 +1,8 @@
 package rest
 
 import (
-	"log"
 	"net/http"
+	"os"
 
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common/response"
@@ -31,6 +31,7 @@ type UamEndpointImpl struct {
 	uamDAO     dao.UamDAO
 	jwtCreator auth.JwtCreator
 	validator  val.Validator
+	groupsDir  string
 }
 
 //RegistrationResponse is returned to the client when the registration was successfull
@@ -64,11 +65,12 @@ type GroupMembershipPayload struct {
 }
 
 //NewUamEndPointImpl - function for creation an instance of UamEndpointImpl
-func NewUamEndPointImpl(uamDAO dao.UamDAO, creator auth.JwtCreator, validator val.Validator) *UamEndpointImpl {
+func NewUamEndPointImpl(uamDAO dao.UamDAO, creator auth.JwtCreator, validator val.Validator, groupsDir string) *UamEndpointImpl {
 	return &UamEndpointImpl{
 		uamDAO:     uamDAO,
 		jwtCreator: creator,
 		validator:  validator,
+		groupsDir:  groupsDir,
 	}
 }
 
@@ -90,13 +92,17 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(rq.Password), bcrypt.DefaultCost)
 	if err != nil {
-		log.Printf("Problem encryption of use password during the registration. Reason: %v\n", err)
+		err = myerr.NewServerErrorWrap(err, "Problem encryption of password during the registration.")
 		common.SendErrorResponse(c, err)
 		return
 	}
 
-	if err = e.uamDAO.CreateUser(rq.Username, string(hashedPassword)); err != nil {
-		log.Printf("Problem crearing the user in the db. Reason: %v\n", err)
+	err = e.uamDAO.CreateUser(rq.Username, string(hashedPassword))
+	if _, ok := err.(*myerr.ClientError); ok {
+		common.SendErrorResponse(c, err)
+		return
+	} else if err != nil {
+		err = myerr.NewServerErrorWrap(err, "Problem crearing the user in the db.")
 		common.SendErrorResponse(c, err)
 		return
 	}
@@ -108,13 +114,13 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 
 //DeleteUser - handler for user deletion request
 func (e *UamEndpointImpl) DeleteUser(c *gin.Context) { //Not tested yet -> gin.Context cannot be mocked
-	userID, err := getIDFromContext(c)
+	userID, err := common.GetIDFromContext(c)
 	if err != nil {
 		common.SendErrorResponse(c, err)
 	}
 
 	if err = e.uamDAO.DeleteUser(uint(userID)); err != nil {
-		log.Printf("Problem with deletion of user. Reason: %v\n", err)
+		err = myerr.NewServerErrorWrap(err, "Problem with deletion of user.")
 		common.SendErrorResponse(c, myerr.NewServerErrorWrap(err, "Problem with deleting user"))
 		return
 	}
@@ -137,7 +143,7 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 		if _, ok := err.(*myerr.ItemNotFoundError); ok {
 			common.SendErrorResponse(c, myerr.NewClientError("Invalid credentials"))
 		} else {
-			log.Printf("Problem with Login. Reason: %v\n", err)
+			err = myerr.NewServerErrorWrap(err, "Problem with Login.")
 			common.SendErrorResponse(c, err)
 		}
 		return
@@ -151,7 +157,7 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 
 	signedToken, err := e.jwtCreator.GenerateToken(user.ID)
 	if err != nil {
-		log.Printf("Problem with generating Jwt token in the login logic. Reason: %v\n", err)
+		err = myerr.NewServerErrorWrap(err, "Problem with generating Jwt token in the login logic.")
 		common.SendErrorResponse(c, err)
 		return
 	}
@@ -164,7 +170,7 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 
 //CreateGroup - handler for group creation request
 func (e *UamEndpointImpl) CreateGroup(c *gin.Context) {
-	userID, err := getIDFromContext(c)
+	userID, err := common.GetIDFromContext(c)
 	if err != nil {
 		common.SendErrorResponse(c, err)
 	}
@@ -178,14 +184,22 @@ func (e *UamEndpointImpl) CreateGroup(c *gin.Context) {
 	//TODO should rename this function - maybe? or create specific function for the group name
 	if err = e.validator.ValidateUsername(rq.GroupName); err != nil {
 		err = myerr.NewClientErrorWrap(err, "Problem with the group name")
-		log.Printf("Problem with validation of the user registration input. Reason: %v\n", err)
 		common.SendErrorResponse(c, err)
 		return
 	}
 
+	groupDir := e.groupsDir + "/" + rq.GroupName
+	if _, err := os.Stat(groupDir); !os.IsNotExist(err) {
+		common.SendErrorResponse(c, myerr.NewClientError("Problem with creation of group. Reason: Group already exists"))
+		return
+	} else if err = os.Mkdir(groupDir, 0755); err != nil {
+		common.SendErrorResponse(c, myerr.NewServerError("Problem with creation of directory"))
+		return
+	}
+
 	if err = e.uamDAO.CreateGroup(userID, rq.GroupName); err != nil {
-		log.Printf("Problem with creation of group. Reason: %v\n", err)
-		common.SendErrorResponse(c, err)
+		os.RemoveAll(groupDir)
+		common.SendErrorResponse(c, myerr.NewServerErrorWrap(err, "Problem with creation of group."))
 		return
 	}
 
@@ -196,7 +210,7 @@ func (e *UamEndpointImpl) CreateGroup(c *gin.Context) {
 
 //AddMember - handler for membership creation request
 func (e *UamEndpointImpl) AddMember(c *gin.Context) {
-	userID, err := getIDFromContext(c)
+	userID, err := common.GetIDFromContext(c)
 	if err != nil {
 		common.SendErrorResponse(c, err)
 	}
@@ -208,7 +222,7 @@ func (e *UamEndpointImpl) AddMember(c *gin.Context) {
 	}
 
 	if err = e.uamDAO.AddUserToGroup(userID, rq.Username, rq.GroupName); err != nil {
-		log.Printf("Problem with creation of group. Reason: %v\n", err)
+		err = myerr.NewServerErrorWrap(err, "Problem with creation of group.")
 		common.SendErrorResponse(c, err)
 		return
 	}
@@ -220,7 +234,7 @@ func (e *UamEndpointImpl) AddMember(c *gin.Context) {
 
 //RevokeMembership - handler for membership deletion request
 func (e *UamEndpointImpl) RevokeMembership(c *gin.Context) {
-	userID, err := getIDFromContext(c)
+	userID, err := common.GetIDFromContext(c)
 	if err != nil {
 		common.SendErrorResponse(c, err)
 	}
@@ -231,20 +245,24 @@ func (e *UamEndpointImpl) RevokeMembership(c *gin.Context) {
 		return
 	}
 
-	if err = e.uamDAO.RemoveUserFromGroup(userID, rq.Username, rq.GroupName); err != nil {
-		log.Printf("Problem with membership revoke. Reason: %v\n", err)
-		common.SendErrorResponse(c, err)
-		return
+	err = e.uamDAO.RemoveUserFromGroup(userID, rq.Username, rq.GroupName)
+
+	if err == nil {
+		c.JSON(http.StatusOK, response.BasicResponse{
+			Status: http.StatusOK,
+		})
 	}
 
-	c.JSON(http.StatusOK, response.BasicResponse{
-		Status: http.StatusOK,
-	})
+	if _, ok := err.(*myerr.ServerError); ok {
+		err = myerr.NewServerErrorWrap(err, "Couldnt remove membership")
+	}
+
+	common.SendErrorResponse(c, err)
 }
 
 //DeleteGroup - handler for group deletion request
 func (e *UamEndpointImpl) DeleteGroup(c *gin.Context) {
-	userID, err := getIDFromContext(c)
+	userID, err := common.GetIDFromContext(c)
 	if err != nil {
 		common.SendErrorResponse(c, err)
 	}
@@ -255,15 +273,18 @@ func (e *UamEndpointImpl) DeleteGroup(c *gin.Context) {
 		return
 	}
 
-	if err = e.uamDAO.DeleteGroup(userID, rq.GroupName); err != nil {
-		log.Printf("Problem with deletion of group. Reason: %v\n", err)
-		common.SendErrorResponse(c, err)
-		return
+	err = e.uamDAO.DeleteGroup(userID, rq.GroupName)
+	if err == nil {
+		c.JSON(http.StatusOK, response.BasicResponse{
+			Status: http.StatusOK,
+		})
 	}
 
-	c.JSON(http.StatusOK, response.BasicResponse{
-		Status: http.StatusOK,
-	})
+	if _, ok := err.(*myerr.ServerError); ok {
+		err = myerr.NewServerErrorWrap(err, "Problem with deletion of group.")
+	}
+
+	common.SendErrorResponse(c, err)
 }
 
 func validateRegistration(validator val.Validator, rq RequestWithCredentials) error {
@@ -275,18 +296,4 @@ func validateRegistration(validator val.Validator, rq RequestWithCredentials) er
 		return myerr.NewClientErrorWrap(err, "Problem with the password")
 	}
 	return nil
-}
-
-func getIDFromContext(c *gin.Context) (uint, error) {
-	id, ok := c.Get("userID")
-	if !ok {
-		log.Println("Problem retieval of userID from context.")
-		return 0, myerr.NewServerError("Cannot retrieve the user id")
-	}
-
-	var userID uint
-	if userID, ok = id.(uint); !ok {
-		return 0, myerr.NewClientError("Invalid user ID")
-	}
-	return userID, nil
 }
