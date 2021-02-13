@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common/response"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth"
 	"github.com/gin-gonic/gin"
 )
@@ -30,7 +30,7 @@ func NewAuthzFilterImpl(creator auth.JwtCreator) *AuthzFilterImpl {
 func (f *AuthzFilterImpl) Authz(c *gin.Context) {
 	clientToken := c.Request.Header.Get("Authorization")
 	if clientToken == "" {
-		c.JSON(http.StatusForbidden, response.ErrorResponse{
+		c.JSON(http.StatusForbidden, common.ErrorResponse{
 			ErrorCode: http.StatusForbidden,
 			ErrorMsg:  "No Authorization header provided",
 		})
@@ -42,7 +42,7 @@ func (f *AuthzFilterImpl) Authz(c *gin.Context) {
 	if len(extractedToken) == 2 {
 		clientToken = strings.TrimSpace(extractedToken[1])
 	} else {
-		c.JSON(http.StatusBadRequest, response.ErrorResponse{
+		c.JSON(http.StatusBadRequest, common.ErrorResponse{
 			ErrorCode: http.StatusBadRequest,
 			ErrorMsg:  "Incorrect Format of Authorization Token",
 		})
@@ -52,7 +52,7 @@ func (f *AuthzFilterImpl) Authz(c *gin.Context) {
 
 	claims, err := f.jwtCreator.ValidateToken(clientToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, response.ErrorResponse{
+		c.JSON(http.StatusUnauthorized, common.ErrorResponse{
 			ErrorCode: http.StatusUnauthorized,
 			ErrorMsg:  "Invalid Authorization token",
 		})

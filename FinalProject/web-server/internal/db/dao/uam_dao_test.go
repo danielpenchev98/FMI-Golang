@@ -922,7 +922,7 @@ var _ = Describe("UamDAO", func() {
 
 	})
 
-	Context("DeleteGroup", func() {
+	Context("DeactivateGroup", func() {
 		When("get group request fails", func() {
 			Context("problem with the database", func() {
 				BeforeEach(func() {
@@ -934,7 +934,7 @@ var _ = Describe("UamDAO", func() {
 				})
 
 				It("propagates error", func() {
-					err := uamDao.DeleteGroup(uint(userID), groupName)
+					err := uamDao.DeactivateGroup(uint(userID), groupName)
 					Expect(err).To(HaveOccurred())
 					_, ok := err.(*myerr.ServerError)
 					Expect(ok).To(Equal(true))
@@ -952,7 +952,7 @@ var _ = Describe("UamDAO", func() {
 				})
 
 				It("propagates error", func() {
-					err := uamDao.DeleteGroup(uint(userID), groupName)
+					err := uamDao.DeactivateGroup(uint(userID), groupName)
 					Expect(err).To(HaveOccurred())
 					_, ok := err.(*myerr.ItemNotFoundError)
 					Expect(ok).To(Equal(true))
@@ -974,7 +974,7 @@ var _ = Describe("UamDAO", func() {
 				})
 
 				It("propagates error", func() {
-					err := uamDao.DeleteGroup(uint(userID), groupName)
+					err := uamDao.DeactivateGroup(uint(userID), groupName)
 					Expect(err).To(HaveOccurred())
 					_, ok := err.(*myerr.ClientError)
 					Expect(ok).To(Equal(true))
@@ -999,7 +999,7 @@ var _ = Describe("UamDAO", func() {
 					})
 
 					It("propagates error", func() {
-						err := uamDao.DeleteGroup(uint(userID+2), groupName)
+						err := uamDao.DeactivateGroup(uint(userID+2), groupName)
 						Expect(err).To(HaveOccurred())
 						_, ok := err.(*myerr.ClientError)
 						Expect(ok).To(Equal(true))
@@ -1021,7 +1021,7 @@ var _ = Describe("UamDAO", func() {
 							mock.ExpectRollback()
 						})
 						It("propagates error", func() {
-							err := uamDao.DeleteGroup(uint(userID), groupName)
+							err := uamDao.DeactivateGroup(uint(userID), groupName)
 							Expect(err).To(HaveOccurred())
 							_, ok := err.(*myerr.ServerError)
 							Expect(ok).To(Equal(true))
@@ -1045,7 +1045,7 @@ var _ = Describe("UamDAO", func() {
 								mock.ExpectRollback()
 							})
 							It("propagates error", func() {
-								err := uamDao.DeleteGroup(uint(userID), groupName)
+								err := uamDao.DeactivateGroup(uint(userID), groupName)
 								Expect(err).To(HaveOccurred())
 								_, ok := err.(*myerr.ServerError)
 								Expect(ok).To(Equal(true))
@@ -1068,7 +1068,7 @@ var _ = Describe("UamDAO", func() {
 								mock.ExpectCommit()
 							})
 							It("propagates error", func() {
-								err := uamDao.DeleteGroup(uint(userID), groupName)
+								err := uamDao.DeactivateGroup(uint(userID), groupName)
 								Expect(err).NotTo(HaveOccurred())
 							})
 						})
@@ -1131,6 +1131,257 @@ var _ = Describe("UamDAO", func() {
 					})
 				})
 
+			})
+		})
+	})
+
+	Context("GetGroup", func() {
+		When("request to get group info is sent", func() {
+			Context("and problem with the db occurrs", func() {
+				BeforeEach(func() {
+					mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+						WithArgs(groupName).
+						WillReturnError(fmt.Errorf("some error"))
+				})
+
+				It("propagates error", func() {
+					_, err := uamDao.GetGroup(groupName)
+					Expect(err).To(HaveOccurred())
+					_, ok := err.(*myerr.ServerError)
+					Expect(ok).To(Equal(true))
+					Expect(mock.ExpectationsWereMet()).To(BeNil())
+				})
+			})
+
+			Context("and query to db succeeds", func() {
+				Context("and no group is found", func() {
+					BeforeEach(func() {
+						mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+							WithArgs(groupName).
+							WillReturnError(gorm.ErrRecordNotFound)
+					})
+
+					It("propagates error", func() {
+						_, err := uamDao.GetGroup(groupName)
+						Expect(err).To(HaveOccurred())
+						_, ok := err.(*myerr.ItemNotFoundError)
+						Expect(ok).To(Equal(true))
+						Expect(mock.ExpectationsWereMet()).To(BeNil())
+					})
+				})
+
+				Context("and the group was found", func() {
+					BeforeEach(func() {
+						mockTime := time.Now()
+						rows := sqlmock.NewRows([]string{"id", "created_at", "updated_at", "name", "owner_id", "active"}).AddRow(1, mockTime, mockTime, groupName, userID, true)
+						mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+							WithArgs(groupName).
+							WillReturnRows(rows)
+					})
+
+					It("succeds", func() {
+						group, err := uamDao.GetGroup(groupName)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(group.Name).To(Equal(groupName))
+						Expect(group.OwnerID).To(Equal(uint(userID)))
+						Expect(mock.ExpectationsWereMet()).To(BeNil())
+					})
+				})
+			})
+		})
+	})
+
+	Context("GetDeactivatedGroupNames", func() {
+		When("request for all deactivated group names is sent", func() {
+			Context("and the query to the db fails", func() {
+				BeforeEach(func() {
+					mock.ExpectQuery(regexp.QuoteMeta(`SELECT "name" FROM "groups"`)).
+						WillReturnError(fmt.Errorf("some error"))
+				})
+
+				It("propagates error", func() {
+					_, err := uamDao.GetDeactivatedGroupNames()
+					Expect(err).To(HaveOccurred())
+					_, ok := err.(*myerr.ServerError)
+					Expect(ok).To(Equal(true))
+					Expect(mock.ExpectationsWereMet()).To(BeNil())
+				})
+			})
+
+			Context("and query to the db succeeds", func() {
+				Context("and no deactivated groups are found", func() {
+					BeforeEach(func() {
+						mock.ExpectQuery(regexp.QuoteMeta(`SELECT "name" FROM "groups"`)).
+							WillReturnRows(sqlmock.NewRows([]string{}))
+					})
+
+					It("propagates error", func() {
+						groups, err := uamDao.GetDeactivatedGroupNames()
+						Expect(err).ToNot(HaveOccurred())
+						Expect(groups).To(BeEmpty())
+						Expect(mock.ExpectationsWereMet()).To(BeNil())
+					})
+				})
+
+				Context("and deactivated groups are found", func() {
+					BeforeEach(func() {
+						mock.ExpectQuery(regexp.QuoteMeta(`SELECT "name" FROM "groups"`)).
+							WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow(groupName))
+					})
+
+					It("propagates error", func() {
+						groups, err := uamDao.GetDeactivatedGroupNames()
+						Expect(err).ToNot(HaveOccurred())
+						Expect(len(groups)).To(Equal(1))
+						Expect(groups[0]).To(Equal(groupName))
+						Expect(mock.ExpectationsWereMet()).To(BeNil())
+					})
+				})
+			})
+		})
+	})
+
+	Context("EraseDeactivatedGroups", func() {
+		When("request to delete all deactivated groups is sent", func() {
+			Context("and deletion query fails", func() {
+				BeforeEach(func() {
+					mock.ExpectBegin()
+					mock.ExpectExec("DELETE FROM \"groups\"").
+						WithArgs(groupName).
+						WillReturnError(fmt.Errorf("some error"))
+					mock.ExpectRollback()
+				})
+
+				It("propagates error", func() {
+					err := uamDao.EraseDeactivatedGroups([]string{groupName})
+					Expect(err).To(HaveOccurred())
+					_, ok := err.(*myerr.ServerError)
+					Expect(ok).To(Equal(true))
+					Expect(mock.ExpectationsWereMet()).To(BeNil())
+				})
+			})
+
+			Context("and deletion query succeeds", func() {
+				BeforeEach(func() {
+					mock.ExpectBegin()
+					mock.ExpectExec("DELETE FROM \"groups\"").
+						WithArgs(groupName).
+						WillReturnResult(sqlmock.NewResult(0, 1))
+					mock.ExpectCommit()
+				})
+
+				It("propagates error", func() {
+					err := uamDao.EraseDeactivatedGroups([]string{groupName})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(mock.ExpectationsWereMet()).To(BeNil())
+				})
+			})
+		})
+	})
+
+	Context("GetAllGroups", func() {
+		When("request to get all existing groups is sent", func() {
+			Context("and query to db fails", func() {
+				BeforeEach(func() {
+					mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+						WillReturnError(fmt.Errorf("some error"))
+				})
+
+				It("propagates error", func() {
+					_, err := uamDao.GetAllGroups()
+					Expect(err).To(HaveOccurred())
+					_, ok := err.(*myerr.ServerError)
+					Expect(ok).To(Equal(true))
+					Expect(mock.ExpectationsWereMet()).To(BeNil())
+				})
+			})
+
+			Context("and query to db succeeds", func() {
+				Context("and no group is found", func() {
+					BeforeEach(func() {
+						mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+							WillReturnRows(sqlmock.NewRows([]string{}))
+					})
+
+					It("propagates error", func() {
+						groups, err := uamDao.GetAllGroups()
+						Expect(err).ToNot(HaveOccurred())
+						Expect(groups).To(BeEmpty())
+						Expect(mock.ExpectationsWereMet()).To(BeNil())
+					})
+				})
+
+				Context("and the group was found", func() {
+					BeforeEach(func() {
+						mockTime := time.Now()
+						rows := sqlmock.NewRows([]string{"id", "created_at", "updated_at", "name", "owner_id", "active"}).AddRow(1, mockTime, mockTime, groupName, userID, true)
+						mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "groups"`)).
+							WillReturnRows(rows)
+					})
+
+					It("succeds", func() {
+						groups, err := uamDao.GetAllGroups()
+						Expect(err).ToNot(HaveOccurred())
+						Expect(len(groups)).To(Equal(1))
+						Expect(groups[0].Name).To(Equal(groupName))
+						Expect(groups[0].OwnerID).To(Equal(uint(userID)))
+						Expect(mock.ExpectationsWereMet()).To(BeNil())
+					})
+				})
+			})
+		})
+	})
+
+	Context("GetAllUsers", func() {
+		When("request to get all existing users is sent", func() {
+			Context("and query to db fails", func() {
+				BeforeEach(func() {
+					mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"`)).
+						WillReturnError(fmt.Errorf("some error"))
+				})
+
+				It("propagates error", func() {
+					_, err := uamDao.GetAllUsers()
+					Expect(err).To(HaveOccurred())
+					_, ok := err.(*myerr.ServerError)
+					Expect(ok).To(Equal(true))
+					Expect(mock.ExpectationsWereMet()).To(BeNil())
+				})
+			})
+
+			Context("and query to db succeeds", func() {
+				Context("and no users is found", func() {
+					BeforeEach(func() {
+						mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"`)).
+							WillReturnRows(sqlmock.NewRows([]string{}))
+					})
+
+					It("propagates error", func() {
+						groups, err := uamDao.GetAllUsers()
+						Expect(err).ToNot(HaveOccurred())
+						Expect(groups).To(BeEmpty())
+						Expect(mock.ExpectationsWereMet()).To(BeNil())
+					})
+				})
+
+				Context("and users were found", func() {
+					BeforeEach(func() {
+						mockTime := time.Now()
+						rows := sqlmock.NewRows([]string{"id", "created_at", "updated_at", "username", "password"}).AddRow(userID, mockTime, mockTime, username, password)
+						mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"`)).
+							WillReturnRows(rows)
+					})
+
+					It("succeeds", func() {
+						users, err := uamDao.GetAllUsers()
+						Expect(err).ToNot(HaveOccurred())
+						Expect(len(users)).To(Equal(1))
+						Expect(users[0].ID).To(Equal(uint(userID)))
+						Expect(users[0].Username).To(Equal(username))
+						Expect(users[0].Password).To(Equal(password))
+						Expect(mock.ExpectationsWereMet()).To(BeNil())
+					})
+				})
 			})
 		})
 	})

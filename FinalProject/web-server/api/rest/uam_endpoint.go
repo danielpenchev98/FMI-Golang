@@ -1,11 +1,12 @@
 package rest
 
 import (
+	"fmt"
 	"net/http"
 	"os"
+	"path"
 
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common"
-	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common/response"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/dao"
 	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
@@ -34,36 +35,6 @@ type UamEndpointImpl struct {
 	groupsDir  string
 }
 
-//RegistrationResponse is returned to the client when the registration was successfull
-//it contains the statius of hist request and the jwt token
-type RegistrationResponse struct {
-	Status   int    `json:"status"`
-	JWTToken string `json:"jwt_token"`
-}
-
-//RequestWithCredentials - request representation for login
-type RequestWithCredentials struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-//LoginResponse - when the login is succesfull a JWT is sent to the user
-type LoginResponse struct {
-	Status int    `json:"status"`
-	Token  string `json:"token"`
-}
-
-//GroupPayload - request payload, containing the group name
-type GroupPayload struct {
-	GroupName string `json:"group_name"`
-}
-
-//GroupMembershipPayload - request payload, containing the group name and username
-type GroupMembershipPayload struct {
-	GroupPayload
-	Username string `json:"username"`
-}
-
 //NewUamEndPointImpl - function for creation an instance of UamEndpointImpl
 func NewUamEndPointImpl(uamDAO dao.UamDAO, creator auth.JwtCreator, validator val.Validator, groupsDir string) *UamEndpointImpl {
 	return &UamEndpointImpl{
@@ -74,10 +45,12 @@ func NewUamEndPointImpl(uamDAO dao.UamDAO, creator auth.JwtCreator, validator va
 	}
 }
 
-//Maybe the while validation procedure to be encapsualted in the registrationvalidator???
 //CreateUser - handler for user creation request
-func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
-	var rq RequestWithCredentials
+//returns 500, if error occurrs due to system failure
+//returns 400 if the user input was invalid
+//returns 201 if the user was successfully created
+func (i *UamEndpointImpl) CreateUser(c *gin.Context) {
+	var rq common.RequestWithCredentials
 
 	//Decide what exactly to return as response -> custom message + 400 or?
 	if err := c.ShouldBindJSON(&rq); err != nil {
@@ -85,7 +58,7 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 		return
 	}
 
-	if err := validateRegistration(e.validator, rq); err != nil {
+	if err := validateRegistration(i.validator, rq); err != nil {
 		common.SendErrorResponse(c, err)
 		return
 	}
@@ -97,7 +70,7 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 		return
 	}
 
-	err = e.uamDAO.CreateUser(rq.Username, string(hashedPassword))
+	err = i.uamDAO.CreateUser(rq.Username, string(hashedPassword))
 	if _, ok := err.(*myerr.ClientError); ok {
 		common.SendErrorResponse(c, err)
 		return
@@ -107,38 +80,44 @@ func (e *UamEndpointImpl) CreateUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, response.BasicResponse{
+	c.JSON(http.StatusCreated, common.BasicResponse{
 		Status: http.StatusCreated,
 	})
 }
 
 //DeleteUser - handler for user deletion request
-func (e *UamEndpointImpl) DeleteUser(c *gin.Context) { //Not tested yet -> gin.Context cannot be mocked
+//returns 500, if error occurrs due to system failure
+//returns 400 if the user input was invalid
+//returns 200 if the user was successfully deleted
+func (i *UamEndpointImpl) DeleteUser(c *gin.Context) {
 	userID, err := common.GetIDFromContext(c)
 	if err != nil {
 		common.SendErrorResponse(c, err)
 	}
 
-	if err = e.uamDAO.DeleteUser(uint(userID)); err != nil {
+	if err = i.uamDAO.DeleteUser(uint(userID)); err != nil {
 		err = myerr.NewServerErrorWrap(err, "Problem with deletion of user.")
 		common.SendErrorResponse(c, myerr.NewServerErrorWrap(err, "Problem with deleting user"))
 		return
 	}
 
-	c.JSON(http.StatusOK, response.BasicResponse{
+	c.JSON(http.StatusOK, common.BasicResponse{
 		Status: http.StatusOK,
 	})
 }
 
 //Login - handler for user login request
-func (e *UamEndpointImpl) Login(c *gin.Context) {
-	var request RequestWithCredentials
+//returns 500, if error occurrs due to system failure
+//returns 400 if the user input was invalid
+//returns 201 if the login was successfull
+func (i *UamEndpointImpl) Login(c *gin.Context) {
+	var request common.RequestWithCredentials
 	if err := c.ShouldBindJSON(&request); err != nil {
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
 	}
 
-	user, err := e.uamDAO.GetUser(request.Username)
+	user, err := i.uamDAO.GetUser(request.Username)
 	if err != nil {
 		if _, ok := err.(*myerr.ItemNotFoundError); ok {
 			common.SendErrorResponse(c, myerr.NewClientError("Invalid credentials"))
@@ -155,139 +134,259 @@ func (e *UamEndpointImpl) Login(c *gin.Context) {
 		return
 	}
 
-	signedToken, err := e.jwtCreator.GenerateToken(user.ID)
+	signedToken, err := i.jwtCreator.GenerateToken(user.ID)
 	if err != nil {
 		err = myerr.NewServerErrorWrap(err, "Problem with generating Jwt token in the login logic.")
 		common.SendErrorResponse(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, LoginResponse{
+	c.JSON(http.StatusCreated, common.LoginResponse{
 		Status: http.StatusCreated,
 		Token:  signedToken,
 	})
 }
 
 //CreateGroup - handler for group creation request
-func (e *UamEndpointImpl) CreateGroup(c *gin.Context) {
+//returns 500, if error occurrs due to system failure
+//returns 400 if the user input was invalid
+//returns 201 if the group was successfully created
+func (i *UamEndpointImpl) CreateGroup(c *gin.Context) {
 	userID, err := common.GetIDFromContext(c)
 	if err != nil {
 		common.SendErrorResponse(c, err)
 	}
 
-	var rq GroupPayload
+	var rq common.GroupPayload
 	if err := c.ShouldBindJSON(&rq); err != nil {
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
 	}
 
 	//TODO should rename this function - maybe? or create specific function for the group name
-	if err = e.validator.ValidateUsername(rq.GroupName); err != nil {
+	if err = i.validator.ValidateUsername(rq.GroupName); err != nil {
 		err = myerr.NewClientErrorWrap(err, "Problem with the group name")
 		common.SendErrorResponse(c, err)
 		return
 	}
 
-	groupDir := e.groupsDir + "/" + rq.GroupName
+	groupDir := path.Join(i.groupsDir, rq.GroupName)
+	fmt.Println(groupDir)
 	if _, err := os.Stat(groupDir); !os.IsNotExist(err) {
+		fmt.Println("WTF1")
 		common.SendErrorResponse(c, myerr.NewClientError("Problem with creation of group. Reason: Group already exists"))
 		return
 	} else if err = os.Mkdir(groupDir, 0755); err != nil {
-		common.SendErrorResponse(c, myerr.NewServerError("Problem with creation of directory"))
+		common.SendErrorResponse(c, myerr.NewServerErrorWrap(err, "Problem with creation of directory"))
 		return
 	}
 
-	if err = e.uamDAO.CreateGroup(userID, rq.GroupName); err != nil {
+	err = i.uamDAO.CreateGroup(userID, rq.GroupName)
+	if _, ok := err.(*myerr.ClientError); ok {
+		common.SendErrorResponse(c, err)
+		return
+	} else if err != nil {
 		os.RemoveAll(groupDir)
 		common.SendErrorResponse(c, myerr.NewServerErrorWrap(err, "Problem with creation of group."))
 		return
 	}
 
-	c.JSON(http.StatusCreated, response.BasicResponse{
+	c.JSON(http.StatusCreated, common.BasicResponse{
 		Status: http.StatusCreated,
 	})
 }
 
 //AddMember - handler for membership creation request
-func (e *UamEndpointImpl) AddMember(c *gin.Context) {
+//returns 500, if error occurrs due to system failure
+//returns 400 if the user input was invalid
+//returns 201 if the user was successfully added to the group
+func (i *UamEndpointImpl) AddMember(c *gin.Context) {
 	userID, err := common.GetIDFromContext(c)
 	if err != nil {
 		common.SendErrorResponse(c, err)
 	}
 
-	var rq GroupMembershipPayload
+	var rq common.GroupMembershipPayload
 	if err := c.ShouldBindJSON(&rq); err != nil {
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
 	}
 
-	if err = e.uamDAO.AddUserToGroup(userID, rq.Username, rq.GroupName); err != nil {
+	err = i.uamDAO.AddUserToGroup(userID, rq.Username, rq.GroupName)
+	if _, ok := err.(*myerr.ClientError); ok {
+		common.SendErrorResponse(c, err)
+		return
+	} else if err != nil {
 		err = myerr.NewServerErrorWrap(err, "Problem with creation of group.")
 		common.SendErrorResponse(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, response.BasicResponse{
+	c.JSON(http.StatusCreated, common.BasicResponse{
 		Status: http.StatusCreated,
 	})
 }
 
 //RevokeMembership - handler for membership deletion request
-func (e *UamEndpointImpl) RevokeMembership(c *gin.Context) {
+//returns 500, if error occurrs due to system failure
+//returns 400 if the user input was invalid
+//returns 200 if the user was successfully removed from the group
+func (i *UamEndpointImpl) RevokeMembership(c *gin.Context) {
 	userID, err := common.GetIDFromContext(c)
 	if err != nil {
 		common.SendErrorResponse(c, err)
+		return
 	}
 
-	var rq GroupMembershipPayload
+	var rq common.GroupMembershipPayload
 	if err := c.ShouldBindJSON(&rq); err != nil {
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
 	}
 
-	err = e.uamDAO.RemoveUserFromGroup(userID, rq.Username, rq.GroupName)
+	err = i.uamDAO.RemoveUserFromGroup(userID, rq.Username, rq.GroupName)
 
-	if err == nil {
-		c.JSON(http.StatusOK, response.BasicResponse{
-			Status: http.StatusOK,
-		})
+	if err != nil {
+		if _, ok := err.(*myerr.ServerError); ok {
+			err = myerr.NewServerErrorWrap(err, "Couldnt remove membership")
+		}
+		common.SendErrorResponse(c, err)
+		return
 	}
 
-	if _, ok := err.(*myerr.ServerError); ok {
-		err = myerr.NewServerErrorWrap(err, "Couldnt remove membership")
-	}
-
-	common.SendErrorResponse(c, err)
+	c.JSON(http.StatusOK, common.BasicResponse{
+		Status: http.StatusOK,
+	})
 }
 
 //DeleteGroup - handler for group deletion request
-func (e *UamEndpointImpl) DeleteGroup(c *gin.Context) {
+//returns 500, if error occurrs due to system failure
+//returns 400 if the user input was invalid
+//returns 20- if the group was successfully deleted
+func (i *UamEndpointImpl) DeleteGroup(c *gin.Context) {
 	userID, err := common.GetIDFromContext(c)
 	if err != nil {
 		common.SendErrorResponse(c, err)
+		return
 	}
 
-	var rq GroupPayload
+	var rq common.GroupPayload
 	if err = c.ShouldBindJSON(&rq); err != nil {
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
 	}
 
-	err = e.uamDAO.DeleteGroup(userID, rq.GroupName)
-	if err == nil {
-		c.JSON(http.StatusOK, response.BasicResponse{
-			Status: http.StatusOK,
+	err = i.uamDAO.DeactivateGroup(userID, rq.GroupName)
+	if _, ok := err.(*myerr.ClientError); ok {
+		common.SendErrorResponse(c, err)
+		return
+	} else if err != nil {
+		err = myerr.NewServerErrorWrap(err, "Problem with deletion of group.")
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, common.BasicResponse{
+		Status: http.StatusOK,
+	})
+}
+
+//GetAllGroupsInfo - handler for fetching info about every active group
+//returns 500, if error occurrs due to system failure
+//returns 400 if the user input was invalid
+//returns 200 otherwise
+func (i *UamEndpointImpl) GetAllGroupsInfo(c *gin.Context) {
+	groups, err := i.uamDAO.GetAllGroups()
+	if _, ok := err.(*myerr.ServerError); ok {
+		err = myerr.NewServerErrorWrap(err, "Problem with fetching all groups.")
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	groupsInfo := make([]common.GroupInfo, 0, len(groups))
+	for _, group := range groups {
+		groupsInfo = append(groupsInfo, common.GroupInfo{
+			ID:      group.ID,
+			Name:    group.Name,
+			OwnerID: group.OwnerID,
 		})
 	}
 
-	if _, ok := err.(*myerr.ServerError); ok {
-		err = myerr.NewServerErrorWrap(err, "Problem with deletion of group.")
-	}
-
-	common.SendErrorResponse(c, err)
+	c.JSON(http.StatusOK, gin.H{
+		"status": http.StatusOK,
+		"groups": groupsInfo,
+	})
 }
 
-func validateRegistration(validator val.Validator, rq RequestWithCredentials) error {
+//GetAllUsersInfo - handler for fetching info about every user
+//returns 500, if error occurrs due to system failure
+//returns 400 if the user input was invalid
+//returns 200 otherwise
+func (i *UamEndpointImpl) GetAllUsersInfo(c *gin.Context) {
+	users, err := i.uamDAO.GetAllUsers()
+	if _, ok := err.(*myerr.ServerError); ok {
+		err = myerr.NewServerErrorWrap(err, "Problem with fetching all users.")
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	usersInfo := make([]common.UserInfo, 0, len(users))
+	for _, user := range users {
+		usersInfo = append(usersInfo, common.UserInfo{
+			ID:       user.ID,
+			Username: user.Username,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": http.StatusOK,
+		"users":  usersInfo,
+	})
+}
+
+//GetAllUsersInGroup - handler for fetching info about every user in a specific group
+//returns 500, if error occurrs due to system failure
+//returns 400 if the user input was invalid
+//returns 200 otherwise
+func (i *UamEndpointImpl) GetAllUsersInGroup(c *gin.Context) {
+	userID, err := common.GetIDFromContext(c)
+	if err != nil {
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	var rq common.GroupPayload
+	if err = c.ShouldBindJSON(&rq); err != nil {
+		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
+		return
+	}
+
+	users, err := i.uamDAO.GetAllUsersInGroup(userID, rq.GroupName)
+	if _, ok := err.(*myerr.ClientError); ok {
+		err = myerr.NewClientErrorWrap(err, "Cannot retrieve the group users")
+		common.SendErrorResponse(c, err)
+		return
+	} else if err != nil {
+		err = myerr.NewServerErrorWrap(err, "Problem with fetching all users in particular group.")
+		common.SendErrorResponse(c, err)
+		return
+	}
+
+	usersInfo := make([]common.UserInfo, 0, len(users))
+	for _, user := range users {
+		usersInfo = append(usersInfo, common.UserInfo{
+			ID:       user.ID,
+			Username: user.Username,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": http.StatusOK,
+		"users":  usersInfo,
+	})
+}
+
+func validateRegistration(validator val.Validator, rq common.RequestWithCredentials) error {
 	if err := validator.ValidateUsername(rq.Username); err != nil {
 		return myerr.NewClientErrorWrap(err, "Problem with the username")
 	}

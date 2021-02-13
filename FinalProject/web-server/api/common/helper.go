@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common/response"
 	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
 	"github.com/gin-gonic/gin"
 )
@@ -28,7 +27,7 @@ func GetIDFromContext(c *gin.Context) (uint, error) {
 //SendErrorResponse - generic method for sending error response to the user
 func SendErrorResponse(c *gin.Context, err error) {
 	errorCode, errorMsg := getErrorResponseArguments(err)
-	c.JSON(errorCode, response.ErrorResponse{
+	c.JSON(errorCode, ErrorResponse{
 		ErrorCode: errorCode,
 		ErrorMsg:  errorMsg,
 	})

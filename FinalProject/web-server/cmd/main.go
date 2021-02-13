@@ -6,12 +6,14 @@ import (
 
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/rest"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth"
+	asyncJob "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/cron"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/dao"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/dbconn"
 	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/middleware"
 	val "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/validator"
 	"github.com/gin-gonic/gin"
+	"github.com/robfig/cron/v3"
 )
 
 var router = gin.Default()
@@ -40,6 +42,12 @@ func main() {
 	uamEndpoint := rest.NewUamEndPointImpl(createUamDAO(), jwtCreator, val.NewBasicValidator(), groupDirPath)
 	fmEndpoint := rest.NewFileManagementEndpointImpl(createUamDAO(), createFmDAO(), groupDirPath)
 
+	groupDeleter := asyncJob.NewGroupEraserJobImpl(createUamDAO(), groupDirPath)
+	asyncJob := cron.New()
+	asyncJob.AddFunc("@every 1m", groupDeleter.DeleteGroups)
+	asyncJob.Start()
+	defer asyncJob.Stop()
+
 	v1 := router.Group("/v1")
 	{
 		public := v1.Group("/public")
@@ -58,6 +66,10 @@ func main() {
 			protected.POST("/group/file/upload", fmEndpoint.UploadFile)
 			protected.GET("/group/file/download", fmEndpoint.DownloadFile)
 			protected.DELETE("/group/file/delete", fmEndpoint.DeleteFile)
+			protected.GET("/group/files", fmEndpoint.RetrieveAllFilesInfo)
+			protected.GET("/groups", uamEndpoint.GetAllGroupsInfo)
+			protected.GET("/users", uamEndpoint.GetAllUsersInfo)
+			protected.GET("/group/users", uamEndpoint.GetAllUsersInGroup)
 		}
 	}
 	log.Fatal(router.Run(":8080"))

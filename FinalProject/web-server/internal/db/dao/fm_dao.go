@@ -9,11 +9,14 @@ import (
 	"gorm.io/gorm"
 )
 
+//go:generate mockgen --source=fm_dao.go --destination dao_mocks/fm_dao.go --package dao_mocks
+
 //FmDAO - interface, used for file management
 type FmDAO interface {
-	GetFileInfo(uint, uint, string) (models.FileInfo, error)
-	AddFileInfo(uint, string, string) (uint, error)
-	RemoveFileInfo(uint, uint, string) error
+	AddFileInfo(userID uint, fileName string, groupName string) (uint, error)
+	GetFileInfo(userID uint, fileID uint, groupName string) (models.FileInfo, error)
+	GetAllFilesInfo(userID uint, groupName string) ([]models.FileInfo, error)
+	RemoveFileInfo(userID uint, fileID uint, groupName string) error
 	Migrate() error
 }
 
@@ -77,7 +80,6 @@ func (f *FmDAOImpl) AddFileInfo(userID uint, fileName string, groupName string) 
 //RemoveFileInfo - removes the file matadata from the db
 func (f *FmDAOImpl) RemoveFileInfo(userID uint, fileID uint, groupName string) error {
 	return f.dbConn.Transaction(func(tx *gorm.DB) error {
-
 		group, err := getGroupWithConn(tx, groupName)
 		if err != nil {
 			return err
@@ -104,6 +106,7 @@ func (f *FmDAOImpl) RemoveFileInfo(userID uint, fileID uint, groupName string) e
 
 //GetFileInfo - fetches metadata for a particular file
 func (f *FmDAOImpl) GetFileInfo(userID uint, fileID uint, groupName string) (models.FileInfo, error) {
+
 	var count int64
 	result := f.dbConn.Table("memberships").Joins("inner join groups on memberships.group_id = groups.id").
 		Where("groups.name = ?", groupName).
@@ -122,6 +125,28 @@ func (f *FmDAOImpl) GetFileInfo(userID uint, fileID uint, groupName string) (mod
 	}
 	return fileInfo, err
 
+}
+
+func (i *FmDAOImpl) GetAllFilesInfo(userID uint, groupName string) ([]models.FileInfo, error) {
+	var count int64
+	result := i.dbConn.Table("memberships").Joins("inner join groups on memberships.group_id = groups.id").
+		Where("groups.name = ?", groupName).
+		Where("memberships.user_id = ?", userID).
+		Count(&count)
+
+	if result.Error != nil {
+		return nil, myerr.NewServerErrorWrap(result.Error, "Problem with checking if user is a member of the group.")
+	} else if count == 0 {
+		return nil, myerr.NewClientError("You arent a member of the group.")
+	}
+
+	var fileInfos []models.FileInfo
+	result = i.dbConn.Table("file_infos").Joins("inner join groups on file_infos.group_id = groups.id").Take(&fileInfos)
+	if result.Error != nil {
+		return nil, myerr.NewServerErrorWrap(result.Error, "Problem with fetching all files from a specific group")
+	}
+
+	return fileInfos, nil
 }
 
 func getFileInfoWithConn(dbConn *gorm.DB, fileID uint) (models.FileInfo, error) {

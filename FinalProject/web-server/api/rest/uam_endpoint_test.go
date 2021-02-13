@@ -6,12 +6,14 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path"
 	"strings"
 
-	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common/response"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/rest"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth/auth_mocks"
-	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/dao/uam_dao_mocks"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/dao/dao_mocks"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/models"
 	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/validator/validator_mocks"
@@ -46,7 +48,7 @@ func setupRouter(uamRest rest.UamEndpoint, userID uint) *gin.Engine {
 
 func assertErrorResponse(recorder *httptest.ResponseRecorder, expStatusCode int, expMessage string) {
 	Expect(recorder.Code).To(Equal(expStatusCode))
-	body := response.ErrorResponse{}
+	body := common.ErrorResponse{}
 	json.Unmarshal([]byte(recorder.Body.String()), &body)
 	Expect(body.ErrorCode).To(Equal(expStatusCode))
 	Expect(body.ErrorMsg).To(ContainSubstring(expMessage))
@@ -57,7 +59,7 @@ var _ = Describe("UamEndpoint", func() {
 		router     *gin.Engine
 		recorder   *httptest.ResponseRecorder
 		jwtCreator *auth_mocks.MockJwtCreator
-		uamDAO     *uam_dao_mocks.MockUamDAO
+		uamDAO     *dao_mocks.MockUamDAO
 		validator  *validator_mocks.MockValidator
 		req        *http.Request
 	)
@@ -67,14 +69,15 @@ var _ = Describe("UamEndpoint", func() {
 		password  = "password"
 		userID    = 1
 		groupName = "groupName"
+		groupsDir = "."
 	)
 
 	BeforeEach(func() {
 		controller := gomock.NewController(GinkgoT())
-		uamDAO = uam_dao_mocks.NewMockUamDAO(controller)
+		uamDAO = dao_mocks.NewMockUamDAO(controller)
 		jwtCreator = auth_mocks.NewMockJwtCreator(controller)
 		validator = validator_mocks.NewMockValidator(controller)
-		uamRest := rest.NewUamEndPointImpl(uamDAO, jwtCreator, validator)
+		uamRest := rest.NewUamEndPointImpl(uamDAO, jwtCreator, validator, groupsDir)
 
 		router = setupRouter(uamRest, userID)
 		recorder = httptest.NewRecorder()
@@ -82,10 +85,10 @@ var _ = Describe("UamEndpoint", func() {
 
 	Context("CreateUser", func() {
 		When("creation request is sent", func() {
-			var reqBody *rest.RequestWithCredentials
+			var reqBody *common.RequestWithCredentials
 
 			BeforeEach(func() {
-				reqBody = &rest.RequestWithCredentials{
+				reqBody = &common.RequestWithCredentials{
 					Username: username,
 					Password: password,
 				}
@@ -233,7 +236,7 @@ var _ = Describe("UamEndpoint", func() {
 									router.ServeHTTP(recorder, req)
 
 									Expect(recorder.Code).To(Equal(http.StatusCreated))
-									body := response.BasicResponse{}
+									body := common.BasicResponse{}
 									json.Unmarshal([]byte(recorder.Body.String()), &body)
 									Expect(body.Status).To(Equal(http.StatusCreated))
 								})
@@ -247,7 +250,7 @@ var _ = Describe("UamEndpoint", func() {
 
 	Context("Login", func() {
 		When("login request is sent", func() {
-			var reqBody *rest.RequestWithCredentials
+			var reqBody *common.RequestWithCredentials
 
 			const (
 				username = "username"
@@ -255,7 +258,7 @@ var _ = Describe("UamEndpoint", func() {
 			)
 
 			BeforeEach(func() {
-				reqBody = &rest.RequestWithCredentials{
+				reqBody = &common.RequestWithCredentials{
 					Username: username,
 					Password: password,
 				}
@@ -395,7 +398,7 @@ var _ = Describe("UamEndpoint", func() {
 								router.ServeHTTP(recorder, req)
 
 								Expect(recorder.Code).To(Equal(http.StatusCreated))
-								body := rest.LoginResponse{}
+								body := common.LoginResponse{}
 								json.Unmarshal([]byte(recorder.Body.String()), &body)
 								Expect(body.Status).To(Equal(http.StatusCreated))
 								Expect(body.Token).To(Equal(token))
@@ -453,7 +456,7 @@ var _ = Describe("UamEndpoint", func() {
 						router.ServeHTTP(recorder, req)
 
 						Expect(recorder.Code).To(Equal(http.StatusOK))
-						body := response.BasicResponse{}
+						body := common.BasicResponse{}
 						json.Unmarshal([]byte(recorder.Body.String()), &body)
 						Expect(body.Status).To(Equal(http.StatusOK))
 					})
@@ -486,10 +489,10 @@ var _ = Describe("UamEndpoint", func() {
 			})
 
 			Context("with json body", func() {
-				var rqBody rest.GroupPayload
+				var rqBody common.GroupPayload
 
 				BeforeEach(func() {
-					rqBody = rest.GroupPayload{GroupName: groupName}
+					rqBody = common.GroupPayload{GroupName: groupName}
 					jsonBody, _ := json.Marshal(&rqBody)
 					req, _ = http.NewRequest("POST", "/protected/group/creation", bytes.NewBuffer(jsonBody))
 					req.Header.Set("Authorization", "Bearer sometoken")
@@ -514,6 +517,10 @@ var _ = Describe("UamEndpoint", func() {
 				})
 
 				Context("and group name passes the validation", func() {
+					AfterEach(func() {
+						os.RemoveAll(path.Join(groupsDir, groupName))
+					})
+
 					Context("and operation of creation group from db fails", func() {
 						Context("because connection to db fails", func() {
 							BeforeEach(func() {
@@ -545,7 +552,7 @@ var _ = Describe("UamEndpoint", func() {
 								)
 							})
 
-							It("returns internal server error response", func() {
+							It("returns bad request response", func() {
 								router.ServeHTTP(recorder, req)
 								assertErrorResponse(recorder, http.StatusBadRequest, "test-error")
 							})
@@ -569,7 +576,7 @@ var _ = Describe("UamEndpoint", func() {
 							router.ServeHTTP(recorder, req)
 
 							Expect(recorder.Code).To(Equal(http.StatusCreated))
-							body := response.BasicResponse{}
+							body := common.BasicResponse{}
 							json.Unmarshal([]byte(recorder.Body.String()), &body)
 							Expect(body.Status).To(Equal(http.StatusCreated))
 						})
@@ -598,10 +605,10 @@ var _ = Describe("UamEndpoint", func() {
 			})
 
 			Context("with json body", func() {
-				var rqBody rest.GroupMembershipPayload
+				var rqBody common.GroupMembershipPayload
 
 				BeforeEach(func() {
-					rqBody = rest.GroupMembershipPayload{Username: username}
+					rqBody = common.GroupMembershipPayload{Username: username}
 					rqBody.GroupName = groupName
 					jsonBody, _ := json.Marshal(&rqBody)
 					req, _ = http.NewRequest("POST", "/protected/group/membership/invitation", bytes.NewBuffer(jsonBody))
@@ -647,7 +654,7 @@ var _ = Describe("UamEndpoint", func() {
 						router.ServeHTTP(recorder, req)
 
 						Expect(recorder.Code).To(Equal(http.StatusCreated))
-						body := response.BasicResponse{}
+						body := common.BasicResponse{}
 						json.Unmarshal([]byte(recorder.Body.String()), &body)
 						Expect(body.Status).To(Equal(http.StatusCreated))
 					})
@@ -675,10 +682,10 @@ var _ = Describe("UamEndpoint", func() {
 			})
 
 			Context("with json body", func() {
-				var rqBody rest.GroupMembershipPayload
+				var rqBody common.GroupMembershipPayload
 
 				BeforeEach(func() {
-					rqBody = rest.GroupMembershipPayload{Username: username}
+					rqBody = common.GroupMembershipPayload{Username: username}
 					rqBody.GroupName = groupName
 					jsonBody, _ := json.Marshal(&rqBody)
 					req, _ = http.NewRequest("POST", "/protected/group/membership/revocation", bytes.NewBuffer(jsonBody))
@@ -724,7 +731,7 @@ var _ = Describe("UamEndpoint", func() {
 						router.ServeHTTP(recorder, req)
 
 						Expect(recorder.Code).To(Equal(http.StatusOK))
-						body := response.BasicResponse{}
+						body := common.BasicResponse{}
 						json.Unmarshal([]byte(recorder.Body.String()), &body)
 						Expect(body.Status).To(Equal(http.StatusOK))
 					})
@@ -739,7 +746,7 @@ var _ = Describe("UamEndpoint", func() {
 
 				BeforeEach(func() {
 					uamDAO.EXPECT().
-						DeleteGroup(uint(userID), groupName).
+						DeactivateGroup(uint(userID), groupName).
 						Times(0)
 
 					req, _ = http.NewRequest("DELETE", "/protected/group/deletion", strings.NewReader("test"))
@@ -752,10 +759,10 @@ var _ = Describe("UamEndpoint", func() {
 			})
 
 			Context("with json body", func() {
-				var rqBody rest.GroupPayload
+				var rqBody common.GroupPayload
 
 				BeforeEach(func() {
-					rqBody = rest.GroupPayload{GroupName: groupName}
+					rqBody = common.GroupPayload{GroupName: groupName}
 					jsonBody, _ := json.Marshal(&rqBody)
 					req, _ = http.NewRequest("DELETE", "/protected/group/deletion", bytes.NewBuffer(jsonBody))
 					req.Header.Set("Authorization", "Bearer sometoken")
@@ -765,7 +772,7 @@ var _ = Describe("UamEndpoint", func() {
 					Context("and request fails due to problem with the server", func() {
 						BeforeEach(func() {
 							uamDAO.EXPECT().
-								DeleteGroup(uint(userID), groupName).
+								DeactivateGroup(uint(userID), groupName).
 								Return(myerr.NewServerError("some-error"))
 						})
 
@@ -778,7 +785,7 @@ var _ = Describe("UamEndpoint", func() {
 					Context("and username or group doesnt exist or user doesnt have required permissions", func() {
 						BeforeEach(func() {
 							uamDAO.EXPECT().
-								DeleteGroup(uint(userID), groupName).
+								DeactivateGroup(uint(userID), groupName).
 								Return(myerr.NewClientError("some-error"))
 						})
 
@@ -792,7 +799,7 @@ var _ = Describe("UamEndpoint", func() {
 				Context("and membership deletion succeeds", func() {
 					BeforeEach(func() {
 						uamDAO.EXPECT().
-							DeleteGroup(uint(userID), groupName).
+							DeactivateGroup(uint(userID), groupName).
 							Return(nil)
 					})
 
@@ -800,7 +807,7 @@ var _ = Describe("UamEndpoint", func() {
 						router.ServeHTTP(recorder, req)
 
 						Expect(recorder.Code).To(Equal(http.StatusOK))
-						body := response.BasicResponse{}
+						body := common.BasicResponse{}
 						json.Unmarshal([]byte(recorder.Body.String()), &body)
 						Expect(body.Status).To(Equal(http.StatusOK))
 					})

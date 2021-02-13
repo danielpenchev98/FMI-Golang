@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-//go:generate mockgen --source=uam_dao.go --destination uam_dao_mocks/uam_dao.go --package uam_dao_mocks
+//go:generate mockgen --source=uam_dao.go --destination dao_mocks/uam_dao.go --package dao_mocks
 
 //UamDAO - interface for working with the Database in regards to the User Access Management
 type UamDAO interface {
@@ -22,8 +22,13 @@ type UamDAO interface {
 	AddUserToGroup(uint, string, string) error
 	RemoveUserFromGroup(uint, string, string) error
 	MemberExists(uint, uint) (bool, error)
-	DeleteGroup(uint, string) error
+	DeactivateGroup(uint, string) error
 	GetGroup(string) (models.Group, error)
+	GetDeactivatedGroupNames() ([]string, error)
+	EraseDeactivatedGroups([]string) error
+	GetAllGroups() ([]models.Group, error)
+	GetAllUsers() ([]models.User, error)
+	GetAllUsersInGroup(uint, string) ([]models.User, error)
 }
 
 //UamDAOImpl - implementation of UamDAO
@@ -37,15 +42,15 @@ func NewUamDAOImpl(dbConn *gorm.DB) *UamDAOImpl {
 }
 
 //Migrate - function which updates the models(table structure) in db
-func (d *UamDAOImpl) Migrate() error {
-	return d.dbConn.AutoMigrate(models.User{}, models.Group{}, models.Membership{})
+func (i *UamDAOImpl) Migrate() error {
+	return i.dbConn.AutoMigrate(models.User{}, models.Group{}, models.Membership{})
 }
 
 //CreateUser - creates a new user in the database, given username and password (encrypted)
-func (d *UamDAOImpl) CreateUser(username string, password string) error {
-	return d.dbConn.Transaction(func(tx *gorm.DB) error {
+func (i *UamDAOImpl) CreateUser(username string, password string) error {
+	return i.dbConn.Transaction(func(tx *gorm.DB) error {
 		var count int64
-		result := d.dbConn.Table("users").Where("username = ?", username).Count(&count)
+		result := tx.Table("users").Where("username = ?", username).Count(&count)
 
 		if result.Error != nil {
 			return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup of users")
@@ -69,9 +74,9 @@ func (d *UamDAOImpl) CreateUser(username string, password string) error {
 }
 
 //DeleteUser - deletes user given an id of the user
-func (d *UamDAOImpl) DeleteUser(userID uint) error {
+func (i *UamDAOImpl) DeleteUser(userID uint) error {
 	var count int64
-	result := d.dbConn.Table("users").Where("id = ?", userID).Count(&count)
+	result := i.dbConn.Table("users").Where("id = ?", userID).Count(&count)
 
 	if result.Error != nil {
 		return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup if user exists")
@@ -80,7 +85,7 @@ func (d *UamDAOImpl) DeleteUser(userID uint) error {
 	}
 
 	log.Printf("Deleting user with id [%d]\n", userID)
-	if result = d.dbConn.Delete(&models.User{}, userID); result.Error != nil {
+	if result = i.dbConn.Delete(&models.User{}, userID); result.Error != nil {
 		return myerr.NewServerErrorWrap(result.Error, "Problem with the deletion of the user from db")
 	}
 	log.Printf("User with id [%d] is deleted\n", userID)
@@ -90,13 +95,13 @@ func (d *UamDAOImpl) DeleteUser(userID uint) error {
 }
 
 //GetUser - fetches information about an existing user
-func (d *UamDAOImpl) GetUser(username string) (models.User, error) {
-	return getUserWithConn(d.dbConn, username)
+func (i *UamDAOImpl) GetUser(username string) (models.User, error) {
+	return getUserWithConn(i.dbConn, username)
 }
 
 //CreateGroup - creates a new group for sharing files
-func (d *UamDAOImpl) CreateGroup(userID uint, groupName string) error {
-	return d.dbConn.Transaction(func(tx *gorm.DB) error {
+func (i *UamDAOImpl) CreateGroup(userID uint, groupName string) error {
+	return i.dbConn.Transaction(func(tx *gorm.DB) error {
 		var count int64
 
 		result := tx.Table("groups").Where("name = ?", groupName).Count(&count)
@@ -134,13 +139,13 @@ func (d *UamDAOImpl) CreateGroup(userID uint, groupName string) error {
 }
 
 //GetGroup - gets information about the group
-func (d *UamDAOImpl) GetGroup(groupName string) (models.Group, error) {
-	return getGroupWithConn(d.dbConn, groupName)
+func (i *UamDAOImpl) GetGroup(groupName string) (models.Group, error) {
+	return getGroupWithConn(i.dbConn, groupName)
 }
 
 //AddUserToGroup - adds a new member to a specified group
-func (d *UamDAOImpl) AddUserToGroup(ownerID uint, username string, groupName string) error {
-	return d.dbConn.Transaction(func(tx *gorm.DB) error {
+func (i *UamDAOImpl) AddUserToGroup(ownerID uint, username string, groupName string) error {
+	return i.dbConn.Transaction(func(tx *gorm.DB) error {
 		var (
 			count int64
 			group models.Group
@@ -188,9 +193,9 @@ func (d *UamDAOImpl) AddUserToGroup(ownerID uint, username string, groupName str
 	})
 }
 
-//DeleteGroup - deletes all memberships and changes the status of the group to non active
-func (d *UamDAOImpl) DeleteGroup(currUserID uint, groupName string) error {
-	return d.dbConn.Transaction(func(tx *gorm.DB) error {
+//DeactivateGroup - deletes all memberships and changes the status of the group to non active
+func (i *UamDAOImpl) DeactivateGroup(currUserID uint, groupName string) error {
+	return i.dbConn.Transaction(func(tx *gorm.DB) error {
 		group, err := getGroupWithConn(tx, groupName)
 		if err != nil {
 			return err
@@ -218,17 +223,13 @@ func (d *UamDAOImpl) DeleteGroup(currUserID uint, groupName string) error {
 }
 
 //RemoveUserFromGroup - removes a membership of a user to a specific group
-func (d *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, groupName string) error {
-	return d.dbConn.Transaction(func(tx *gorm.DB) error {
+func (i *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, groupName string) error {
+	return i.dbConn.Transaction(func(tx *gorm.DB) error {
 		var (
 			group models.Group
 			user  models.User
 			err   error
 		)
-
-		/*
-			SHOULD THIS BISNESS LOGIC BE HERE AT ALL?????????????????/
-		*/
 
 		group, err = getGroupWithConn(tx, groupName)
 		if err != nil {
@@ -265,9 +266,9 @@ func (d *UamDAOImpl) RemoveUserFromGroup(currUserID uint, username string, group
 }
 
 //MemberExists - check if membership exists for a particular group
-func (d *UamDAOImpl) MemberExists(userID uint, groupID uint) (bool, error) {
+func (i *UamDAOImpl) MemberExists(userID uint, groupID uint) (bool, error) {
 	var count int64
-	result := d.dbConn.Table("memberships").
+	result := i.dbConn.Table("memberships").
 		Where("user_id = ?", userID).
 		Where("group_id = ?", groupID).
 		Count(&count)
@@ -276,6 +277,92 @@ func (d *UamDAOImpl) MemberExists(userID uint, groupID uint) (bool, error) {
 		return false, myerr.NewServerErrorWrap(result.Error, "Problem with check existance of membership")
 	}
 	return count != 0, nil
+}
+
+//GetDeactivatedGroupNames - retrieves names of all deactivated groups, which are still not deleted
+func (i *UamDAOImpl) GetDeactivatedGroupNames() ([]string, error) {
+	var groupNames []string
+	result := i.dbConn.Table("groups").
+		Where("active", false).Pluck("name", &groupNames)
+
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return make([]string, 0), nil
+	} else if result.Error != nil {
+		return nil, myerr.NewServerErrorWrap(result.Error, "Problem with finding all groups, whose resources shuld be deleted")
+	}
+	return groupNames, nil
+}
+
+//EraseDeactivatedGroups - deletes pernamently the groups, instead of just deactivate them
+func (i *UamDAOImpl) EraseDeactivatedGroups(groupNames []string) error {
+	return i.dbConn.Transaction(func(tx *gorm.DB) error {
+		for _, groupName := range groupNames {
+			result := tx.Unscoped().Where("name = ?", groupName).Delete(&models.Group{})
+			if result.Error != nil {
+				return myerr.NewServerErrorWrap(result.Error, "Couldnt delete the inactive groups")
+			} else if result.RowsAffected == 0 {
+				fmt.Println("Warning. Tried to delete already deleted group")
+			}
+		}
+		return nil
+	})
+}
+
+//GetAllGroups - retrieves all groups
+func (i *UamDAOImpl) GetAllGroups() ([]models.Group, error) {
+	var groups []models.Group
+	result := i.dbConn.Find(&groups)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return make([]models.Group, 0), nil
+	} else if result.Error != nil {
+		return nil, myerr.NewServerErrorWrap(result.Error, "Problem with fetching all groups")
+	}
+	return groups, nil
+}
+
+//GetAllUsers - retrieves all users
+func (i *UamDAOImpl) GetAllUsers() ([]models.User, error) {
+	var users []models.User
+	result := i.dbConn.Find(&users)
+	if result.Error != nil {
+		return nil, myerr.NewServerErrorWrap(result.Error, "Problem with fetching all users")
+	}
+	return users, nil
+}
+
+//GetAllUsersInGroup - retrieves all users in a group
+func (i *UamDAOImpl) GetAllUsersInGroup(userID uint, groupName string) ([]models.User, error) {
+	var users []models.User
+	err := i.dbConn.Transaction(func(tx *gorm.DB) error {
+		group, errGet := getGroupWithConn(tx, groupName)
+		if errGet != nil {
+			return errGet
+		} else if !group.Active {
+			return myerr.NewClientError("Invalid group")
+		}
+
+		var count int64
+		result := tx.Table("memberships").
+			Where("group_id = ?", group.ID).
+			Where("user_id = ?", userID).
+			Count(&count)
+
+		if result.Error != nil {
+			return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup of membership in db")
+		} else if count == 0 {
+			return myerr.NewClientError("The user is not a member of the group")
+		}
+
+		result = tx.Table("users").Joins("inner join memberships on users.id = memberships.user_id").
+			Where("memberships.group_id = ?", group.ID).Take(&users)
+
+		if result.Error != nil {
+			return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup of users in db")
+		}
+
+		return nil
+	})
+	return users, err
 }
 
 func getUserWithConn(dbConn *gorm.DB, username string) (models.User, error) {

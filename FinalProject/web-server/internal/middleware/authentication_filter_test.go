@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common/response"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth"
 	authMock "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/auth/auth_mocks"
 	mw "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/middleware"
@@ -27,7 +27,7 @@ func setupRouter(filter mw.AuthzFilter) *gin.Engine {
 
 func assertErrorResponse(recorder *httptest.ResponseRecorder, expStatusCode int, expMessage string) {
 	Expect(recorder.Code).To(Equal(expStatusCode))
-	body := response.ErrorResponse{}
+	body := common.ErrorResponse{}
 	json.Unmarshal([]byte(recorder.Body.String()), &body)
 	Expect(body.ErrorCode).To(Equal(expStatusCode))
 	Expect(body.ErrorMsg).To(ContainSubstring(expMessage))
