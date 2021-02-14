@@ -37,6 +37,12 @@ go run client.go
 ## Commands
 Every single command begins with executing `client.go` in the `cmd` package
 
+### Help
+```bash
+go run client.go help
+```
+Result: Shows all available commands with description and their flags
+
 ### Registration
 ```bash
 go run client.go register -usr=<username> -pass=<password>
