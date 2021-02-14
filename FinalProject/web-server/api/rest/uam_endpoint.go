@@ -2,6 +2,7 @@ package rest
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -54,11 +55,13 @@ func (i *UamEndpointImpl) CreateUser(c *gin.Context) {
 
 	//Decide what exactly to return as response -> custom message + 400 or?
 	if err := c.ShouldBindJSON(&rq); err != nil {
+		log.Println("Cannot unmarshall this shit")
 		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
 		return
 	}
 
 	if err := validateRegistration(i.validator, rq); err != nil {
+		log.Println(err)
 		common.SendErrorResponse(c, err)
 		return
 	}
@@ -70,8 +73,11 @@ func (i *UamEndpointImpl) CreateUser(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Creating the user with username %s and password %s\n", rq.Username, rq.Password)
+
 	err = i.uamDAO.CreateUser(rq.Username, string(hashedPassword))
 	if _, ok := err.(*myerr.ClientError); ok {
+		log.Println("FUCK it")
 		common.SendErrorResponse(c, err)
 		return
 	} else if err != nil {
@@ -173,7 +179,6 @@ func (i *UamEndpointImpl) CreateGroup(c *gin.Context) {
 	groupDir := path.Join(i.groupsDir, rq.GroupName)
 	fmt.Println(groupDir)
 	if _, err := os.Stat(groupDir); !os.IsNotExist(err) {
-		fmt.Println("WTF1")
 		common.SendErrorResponse(c, myerr.NewClientError("Problem with creation of group. Reason: Group already exists"))
 		return
 	} else if err = os.Mkdir(groupDir, 0755); err != nil {
@@ -355,13 +360,13 @@ func (i *UamEndpointImpl) GetAllUsersInGroup(c *gin.Context) {
 		return
 	}
 
-	var rq common.GroupPayload
-	if err = c.ShouldBindJSON(&rq); err != nil {
-		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
+	groupName := c.Query("group_name")
+	if groupName == "" {
+		common.SendErrorResponse(c, myerr.NewClientError("Groupname isnt specified"))
 		return
 	}
 
-	users, err := i.uamDAO.GetAllUsersInGroup(userID, rq.GroupName)
+	users, err := i.uamDAO.GetAllUsersInGroup(userID, groupName)
 	if _, ok := err.(*myerr.ClientError); ok {
 		err = myerr.NewClientErrorWrap(err, "Cannot retrieve the group users")
 		common.SendErrorResponse(c, err)
