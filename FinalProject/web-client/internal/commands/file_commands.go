@@ -85,7 +85,7 @@ func DownloadFile(hostURL, token string) {
 		return
 	}
 
-	fmt.Println("File was successfully download.\n")
+	fmt.Println("File was successfully download.")
 }
 
 //DeleteFile - command for deletion of file on the server

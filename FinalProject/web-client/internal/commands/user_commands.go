@@ -56,7 +56,7 @@ func RegisterUser(hostURL string) {
 
 	restClient := restclient.NewRestClientImpl("")
 	url := hostURL + endpoints.RegisterAPIEndpoint
-	err := restClient.Post(url, &rqBody, &successBody)
+	err := restClient.Post(url, &rqBody, nil)
 
 	if err != nil {
 		fmt.Printf("Problem with the registration request. %s", err.Error())
