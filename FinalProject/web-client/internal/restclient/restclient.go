@@ -105,14 +105,17 @@ func (i *RestClientImpl) UploadFile(url string, filePath string, successBody int
 	return nil
 }
 
-func (i *RestClientImpl) DownloadFile(url string, targetPath string, reqBody interface{}) error {
+func (i *RestClientImpl) DownloadFile(url string, targetPath string) error {
 	errorBody := errorResponse{}
-	resp, err := i.client.R().
+	req := i.client.R().
 		SetOutput(targetPath).
-		SetError(&errorBody).
-		SetBody(reqBody).
-		Get(url)
+		SetError(&errorBody)
 
+	if i.jwtToken != "" {
+		req.SetAuthToken(i.jwtToken)
+	}
+
+	resp, err := req.Get(url)
 	if err != nil {
 		return err
 	}

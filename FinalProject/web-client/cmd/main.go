@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-client/cmd/endpoints"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-client/internal/restclient"
 )
 
@@ -20,7 +21,7 @@ type BasicResponse struct {
 	Status int `json:"status"`
 }
 
-func registerUser() {
+func registerUser(hostURL string) {
 	registrationCommand := flag.NewFlagSet("register", flag.ExitOnError)
 
 	username := registrationCommand.String("usr", "", "username")
@@ -40,7 +41,8 @@ func registerUser() {
 
 	successBody := BasicResponse{}
 	restClient := restclient.NewRestClientImpl("")
-	err := restClient.Post("http://localhost:8080/v1/public/user/registration", &rqBody, &successBody)
+	url := hostURL + endpoints.RegisterAPIEndpoint
+	err := restClient.Post(url, &rqBody, &successBody)
 
 	if err != nil {
 		fmt.Printf("Problem with the registration request. %s", err.Error())
@@ -56,7 +58,7 @@ type LoginResponse struct {
 	Token  string `json:"token"`
 }
 
-func login() {
+func login(hostURL string) {
 	loginCommand := flag.NewFlagSet("login", flag.ExitOnError)
 
 	username := loginCommand.String("usr", "", "username")
@@ -76,7 +78,8 @@ func login() {
 	successBody := LoginResponse{}
 
 	restClient := restclient.NewRestClientImpl("")
-	err := restClient.Post("http://localhost:8080/v1/public/user/login", &rqBody, &successBody)
+	url := hostURL + endpoints.LoginAPIEndpoint
+	err := restClient.Post(url, &rqBody, &successBody)
 
 	if err != nil {
 		fmt.Printf("Problem with the login request. %s", err.Error())
@@ -98,7 +101,7 @@ type GroupPayload struct {
 	GroupName string `json:"group_name"`
 }
 
-func createGroup(token string) {
+func createGroup(hostURL, token string) {
 	createGroupCommand := flag.NewFlagSet("create-group", flag.ExitOnError)
 	groupName := createGroupCommand.String("grp", "", "Name of the group to be created")
 
@@ -113,7 +116,8 @@ func createGroup(token string) {
 	}
 
 	restClient := restclient.NewRestClientImpl(token)
-	err := restClient.Post("http://localhost:8080/v1/protected/group/creation", &rqBody, nil)
+	url := hostURL + endpoints.CreateGroupAPIEndpoint
+	err := restClient.Post(url, &rqBody, nil)
 
 	if err != nil {
 		fmt.Printf("Problem with the group creation request. %s", err.Error())
@@ -123,7 +127,7 @@ func createGroup(token string) {
 	fmt.Printf("Group %s was succesfully created", *groupName)
 }
 
-func deleteGroup(token string) {
+func deleteGroup(hostURL, token string) {
 	deleteGroupCommand := flag.NewFlagSet("delete-group", flag.ExitOnError)
 	groupName := deleteGroupCommand.String("grp", "", "Name of the group to be deleted")
 	deleteGroupCommand.Parse(os.Args[2:])
@@ -138,7 +142,8 @@ func deleteGroup(token string) {
 	}
 
 	restClient := restclient.NewRestClientImpl(token)
-	err := restClient.Delete("http://localhost:8080/v1/protected/group/deletion", &rqBody, nil)
+	url := hostURL + endpoints.DeleteGroupAPIEndpoint
+	err := restClient.Delete(url, &rqBody, nil)
 
 	if err != nil {
 		fmt.Printf("Problem with the group creation request. %s", err.Error())
@@ -153,7 +158,7 @@ type MembershipRequest struct {
 	Username string `json:"username"`
 }
 
-func addUserToGroup(token string) {
+func addUserToGroup(hostURL, token string) {
 	addMemberCommand := flag.NewFlagSet("add-member", flag.ExitOnError)
 	username := addMemberCommand.String("usr", "", "Name of the user to be added to the group")
 	groupName := addMemberCommand.String("grp", "", "Name of the group to be deleted")
@@ -170,7 +175,8 @@ func addUserToGroup(token string) {
 	rqBody.GroupName = *groupName
 
 	restClient := restclient.NewRestClientImpl(token)
-	err := restClient.Post("http://localhost:8080/v1/protected/group/invitation", &rqBody, nil)
+	url := hostURL + endpoints.AddMemberAPIEndpoint
+	err := restClient.Post(url, &rqBody, nil)
 
 	if err != nil {
 		fmt.Printf("Problem with the group creation request. %s", err.Error())
@@ -180,7 +186,7 @@ func addUserToGroup(token string) {
 	fmt.Printf("User %s was successfully added to group %s\n", *username, *groupName)
 }
 
-func removeUserFromGroup(token string) {
+func removeUserFromGroup(hostURL, token string) {
 	removeMemberCommand := flag.NewFlagSet("remove-member", flag.ExitOnError)
 
 	username := removeMemberCommand.String("usr", "", "Name of the user to be added to the group")
@@ -198,7 +204,8 @@ func removeUserFromGroup(token string) {
 	rqBody.GroupName = *groupName
 
 	restClient := restclient.NewRestClientImpl(token)
-	err := restClient.Delete("http://localhost:8080/v1/protected/group/membership/revocation", &rqBody, nil)
+	url := hostURL + endpoints.RemoveMemberAPIEndpoint
+	err := restClient.Delete(url, &rqBody, nil)
 
 	if err != nil {
 		fmt.Printf("Problem with the group creation request. %s", err.Error())
@@ -212,7 +219,7 @@ type FileUploadResponse struct {
 	FileID uint `json:"file_id"`
 }
 
-func uploadFile(token string) {
+func uploadFile(hostURL, token string) {
 	uploadFileCommand := flag.NewFlagSet("upload-file", flag.ExitOnError)
 	filePath := uploadFileCommand.String("filepath", "", "Path to the file")
 	groupName := uploadFileCommand.String("grp", "", "Name of the group, in which the file will be uploaded")
@@ -226,7 +233,7 @@ func uploadFile(token string) {
 	successBody := FileUploadResponse{}
 
 	restClient := restclient.NewRestClientImpl(token)
-	url := fmt.Sprintf("http://localhost:8080/v1/protected/group/file/upload?group_name=%s", *groupName)
+	url := fmt.Sprintf("%s%s?group_name=%s", hostURL, endpoints.UploadFileAPIEndpoint, *groupName)
 	err := restClient.UploadFile(url, *filePath, &successBody)
 
 	if err != nil {
@@ -237,7 +244,7 @@ func uploadFile(token string) {
 	fmt.Printf("File was successfully uploaded in group %s.\n The id of the file is %d\n", *groupName, successBody.FileID)
 }
 
-func downloadFile(token string) {
+func downloadFile(hostURL, token string) {
 	downloadFileCommand := flag.NewFlagSet("download-file", flag.ExitOnError)
 	fileID := downloadFileCommand.Int("fileid", -1, "File id")
 	groupName := downloadFileCommand.String("grp", "", "Name of the group, owning the file")
@@ -250,16 +257,12 @@ func downloadFile(token string) {
 		return
 	}
 
-	req := FileRequest{
-		FileID: uint(*fileID),
-	}
-	req.GroupName = *groupName
-
 	restClient := restclient.NewRestClientImpl(token)
-	err := restClient.DownloadFile("http://localhost:8080/v1/protected/group/file/download", *targetPath, &req)
+	url := fmt.Sprintf("%s%s?group_name=%s&file_id=%d", hostURL, endpoints.DownloadFileAPIEndpoint, *groupName, *fileID)
+	err := restClient.DownloadFile(url, *targetPath)
 
 	if err != nil {
-		fmt.Printf("Problem with the file download request. %s", err.Error())
+		fmt.Println(err.Error())
 		return
 	}
 
@@ -271,7 +274,7 @@ type FileRequest struct {
 	FileID uint `json:"file_id"`
 }
 
-func deleteFile(token string) {
+func deleteFile(hostURL, token string) {
 	deleteFileCommand := flag.NewFlagSet("delete-file", flag.ExitOnError)
 	fileID := deleteFileCommand.Int("fileid", -1, "File id")
 	groupName := deleteFileCommand.String("grp", "", "Name of the group, in which the file will be uploaded")
@@ -289,7 +292,8 @@ func deleteFile(token string) {
 	reqBody.GroupName = *groupName
 
 	restClient := restclient.NewRestClientImpl(token)
-	err := restClient.Delete("http://localhost:8080/v1/protected/group/file/delete", &reqBody, nil)
+	url := hostURL + endpoints.DeleteFileAPIEndpoint
+	err := restClient.Delete(url, &reqBody, nil)
 
 	if err != nil {
 		fmt.Printf("Problem with the file deletion request. %s", err.Error())
@@ -311,7 +315,7 @@ type FilesInfoResponse struct {
 	FilesInfo []FileInfo `json:"files"`
 }
 
-func showAllFilesInGroup(token string) {
+func showAllFilesInGroup(hostURL, token string) {
 	getAllFilesCommand := flag.NewFlagSet("show-all-files", flag.ExitOnError)
 	groupName := getAllFilesCommand.String("grp", "", "Name of the group")
 
@@ -328,7 +332,8 @@ func showAllFilesInGroup(token string) {
 	successBody := FilesInfoResponse{}
 
 	restClient := restclient.NewRestClientImpl(token)
-	err := restClient.Post("http://localhost:8080/v1/protected/group/membership/reinvocation", &rqBody, &successBody)
+	url := hostURL + endpoints.GetAllFilesAPIEndpoint
+	err := restClient.Post(url, &rqBody, &successBody)
 
 	if err != nil {
 		fmt.Printf("Problem with the group creation request. %s", err.Error())
@@ -354,11 +359,12 @@ type GroupsInfoResponse struct {
 	GroupsInfo []GroupInfo `json:"groups"`
 }
 
-func showAllGroups(token string) {
+func showAllGroups(hostURL, token string) {
 	successBody := GroupsInfoResponse{}
 
 	restClient := restclient.NewRestClientImpl(token)
-	err := restClient.Get("http://localhost:8080/v1/protected/groups", &successBody)
+	url := hostURL + endpoints.GetAllGroupsAPIEndpoint
+	err := restClient.Get(url, &successBody)
 
 	if err != nil {
 		fmt.Printf("Problem with the group creation request. %s", err.Error())
@@ -382,11 +388,12 @@ type UsersInfo struct {
 	UsersInfo []UserInfo `json:"users"`
 }
 
-func showAllUsers(token string) {
+func showAllUsers(hostURL string, token string) {
 	successBody := UsersInfo{}
 
 	restClient := restclient.NewRestClientImpl(token)
-	err := restClient.Get("http://localhost:8080/v1/protected/users", &successBody)
+	url := hostURL + endpoints.GetAllUsersAPIEndpoint
+	err := restClient.Get(url, &successBody)
 
 	if err != nil {
 		fmt.Printf("Problem with the group creation request. %s", err.Error())
@@ -400,7 +407,7 @@ func showAllUsers(token string) {
 	}
 }
 
-func showAllMembers(token string) {
+func showAllMembers(hostURL, token string) {
 	getAllMembers := flag.NewFlagSet("show-all-members", flag.ExitOnError)
 	groupName := getAllMembers.String("grp", "", "Name of the group")
 
@@ -413,7 +420,7 @@ func showAllMembers(token string) {
 	successBody := UsersInfo{}
 
 	restClient := restclient.NewRestClientImpl(token)
-	url := fmt.Sprintf("http://localhost:8080/v1/protected/group/users?group_name=%s", *groupName)
+	url := fmt.Sprintf("%s%s?group_name=%s", hostURL, endpoints.GetAllMembersAPIEndpoint, *groupName)
 	err := restClient.Get(url, &successBody)
 
 	if err != nil {
@@ -426,6 +433,16 @@ func showAllMembers(token string) {
 		fmt.Printf("ID: %d\nName: %s\n", userInfo.ID, userInfo.Username)
 		fmt.Println("------------")
 	}
+}
+
+func targetServer() {
+	targetServerCommand := flag.NewFlagSet("target", flag.ExitOnError)
+	hostURL := targetServerCommand.String("host", "", "Host url of the server")
+
+	targetServerCommand.Parse(os.Args[2:])
+
+	ioutil.WriteFile("/tmp/host", []byte(*hostURL), 0644)
+	fmt.Printf("Server with host url [%s] was successfully targeted\n", *hostURL)
 }
 
 func retrieveJwtToken() (string, error) {
@@ -441,40 +458,70 @@ func retrieveJwtToken() (string, error) {
 	return string(token), nil
 }
 
-func commandsWithAuth(command string) {
+func retrieveHostURL() (string, error) {
+	if _, err := os.Stat("/tmp/host"); os.IsNotExist(err) {
+		return "", errors.New("Problem with host url, please target the server again")
+	}
+
+	url, err := ioutil.ReadFile("/tmp/host")
+	if string(url) == "" || err != nil {
+		return "", errors.New("Problem with host url, please target the server again")
+	}
+
+	return string(url), nil
+}
+
+func commandsWithAuth(command, hostURL string) {
 	token, err := retrieveJwtToken()
 	if err != nil {
-		fmt.Println("Couldnt create a group. Reason: %s", err.Error())
-		os.Exit(1)
+		fmt.Println(err.Error())
+		return
 	}
 
 	switch command {
 	case "logout":
 		logout()
 	case "create-group":
-		createGroup(token)
+		createGroup(hostURL, token)
 	case "delete-group":
-		deleteGroup(token)
+		deleteGroup(hostURL, token)
 	case "add-member":
-		addUserToGroup(token)
+		addUserToGroup(hostURL, token)
 	case "remove-member":
-		removeUserFromGroup(token)
+		removeUserFromGroup(hostURL, token)
 	case "upload-file":
-		uploadFile(token)
+		uploadFile(hostURL, token)
 	case "download-file":
-		downloadFile(token)
+		downloadFile(hostURL, token)
 	case "delete-file":
-		deleteFile(token)
+		deleteFile(hostURL, token)
 	case "show-all-files":
-		showAllFilesInGroup(token)
+		showAllFilesInGroup(hostURL, token)
 	case "show-all-groups":
-		showAllGroups(token)
+		showAllGroups(hostURL, token)
 	case "show-all-users":
-		showAllUsers(token)
+		showAllUsers(hostURL, token)
 	case "show-all-members":
-		showAllMembers(token)
+		showAllMembers(hostURL, token)
 	default:
 		fmt.Printf("Invalid command [%s]\n", command)
+	}
+}
+
+func commandsWithHostURL(command string) {
+	hostURL, err := retrieveHostURL()
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	switch command {
+	case "login":
+		login(hostURL)
+	case "register":
+		registerUser(hostURL)
+	default:
+		commandsWithAuth(command, hostURL)
 	}
 }
 
@@ -485,13 +532,10 @@ func main() {
 	}
 
 	command := os.Args[1]
-	switch command {
-	case "login":
-		login()
-	case "register":
-		registerUser()
-	default:
-		commandsWithAuth(command)
+	if command == "target" {
+		targetServer()
+	} else {
+		commandsWithHostURL(command)
 	}
 
 }
