@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pkg/errors"
+	myerr "github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/error"
 	"gorm.io/gorm"
 )
 
@@ -21,9 +21,6 @@ const (
 	//DBport - name of env variable, containing the port on which the db server is running on
 	dbPort = "DB_PORT"
 
-	//DBtype - name of env variable, containing the type of db
-	dbType = "DB_TYPE"
-
 	//DBdomain - name of env variable, containing the domain of the db server
 	dbHost = "DB_HOST"
 )
@@ -38,7 +35,7 @@ func GetDBConn(creator func(string) gorm.Dialector) (*gorm.DB, error) {
 
 	dbConn, err := gorm.Open(creator(getDBDns()), &gorm.Config{})
 	if err != nil {
-		return nil, errors.Wrap(err, "Cannot create a connection to the database.")
+		return nil, myerr.NewServerErrorWrap(err, "Cannot create a connection to the database.")
 	}
 
 	return dbConn, nil

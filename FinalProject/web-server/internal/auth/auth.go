@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	secretKey     = "secret"
-	issuerKey     = "issuer"
-	expirationKey = "expiration"
+	secretKey     = "SECRET"
+	issuerKey     = "ISSUER"
+	expirationKey = "EXPIRATION"
 )
 
 //go:generate mockgen --source=auth.go --destination auth_mocks/auth.go --package auth_mocks

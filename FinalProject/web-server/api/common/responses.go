@@ -40,6 +40,7 @@ type UserInfo struct {
 	Username string `json:"username"`
 }
 
+//FileInfoResponse - response of a request for fetching information about file
 type FileInfoResponse struct {
 	ID         uint      `json:"file_id"`
 	Name       string    `json:"file_name"`
