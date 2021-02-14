@@ -335,10 +335,10 @@ func (i *UamDAOImpl) GetAllUsersInGroup(userID uint, groupName string) ([]models
 	var users []models.User
 	err := i.dbConn.Transaction(func(tx *gorm.DB) error {
 		group, errGet := getGroupWithConn(tx, groupName)
-		if errGet != nil {
-			return errGet
-		} else if !group.Active {
+		if _, ok := errGet.(*myerr.ItemNotFoundError); ok || !group.Active {
 			return myerr.NewClientError("Invalid group")
+		} else if errGet != nil {
+			return errGet
 		}
 
 		var count int64
@@ -353,8 +353,10 @@ func (i *UamDAOImpl) GetAllUsersInGroup(userID uint, groupName string) ([]models
 			return myerr.NewClientError("The user is not a member of the group")
 		}
 
+		log.Printf("Group id %d\n", group.ID)
+
 		result = tx.Table("users").Joins("inner join memberships on users.id = memberships.user_id").
-			Where("memberships.group_id = ?", group.ID).Take(&users)
+			Where("memberships.group_id = ?", group.ID).Find(&users)
 
 		if result.Error != nil {
 			return myerr.NewServerErrorWrap(result.Error, "Problem with the lookup of users in db")
@@ -370,7 +372,7 @@ func getUserWithConn(dbConn *gorm.DB, username string) (models.User, error) {
 
 	result := dbConn.Table("users").
 		Where("username = ?", username).
-		Take(&user)
+		Find(&user)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return user, myerr.NewItemNotFoundError("User does not exist")
@@ -386,7 +388,7 @@ func getGroupWithConn(dbConn *gorm.DB, groupName string) (models.Group, error) {
 
 	result := dbConn.Table("groups").
 		Where("name = ?", groupName).
-		Take(&group)
+		Find(&group)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return group, myerr.NewItemNotFoundError(fmt.Sprintf("Group [%s] does not exist", groupName))

@@ -161,7 +161,7 @@ var _ = Describe("UamEndpoint", func() {
 
 				Context("and groupname is specified as query param", func() {
 					BeforeEach(func() {
-						req, _ = http.NewRequest("POST", fmt.Sprintf("/protected/group/file/upload?groupname=%s", groupName), form)
+						req, _ = http.NewRequest("POST", fmt.Sprintf("/protected/group/file/upload?group_name=%s", groupName), form)
 						req.Header.Add("Content-Type", contentType)
 						req.Header.Set("Authorization", "Bearer sometoken")
 					})

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/api/common"
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-server/internal/db/dao"
@@ -58,7 +59,7 @@ func (i *FileManagementEndpointImpl) UploadFile(c *gin.Context) {
 	}
 
 	var group models.Group
-	groupName := c.Query("groupname")
+	groupName := c.Query("group_name")
 	if groupName == "" {
 		common.SendErrorResponse(c, myerr.NewClientError("Groupname isnt specified"))
 		return
@@ -118,13 +119,23 @@ func (i *FileManagementEndpointImpl) DownloadFile(c *gin.Context) {
 		return
 	}
 
-	var rq common.FileRequestPayload
-	if err := c.ShouldBindJSON(&rq); err != nil {
-		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
+	fileIDString := c.Query("file_id")
+	if fileIDString == "" {
+		common.SendErrorResponse(c, myerr.NewClientError("File id isnt specified"))
+		return
+	}
+	fileID, err := strconv.ParseUint(fileIDString, 0, 32)
+	if err != nil {
+		common.SendErrorResponse(c, myerr.NewClientError("Unvalid format of file id"))
+		return
+	}
+	groupName := c.Query("group_name")
+	if groupName == "" {
+		common.SendErrorResponse(c, myerr.NewClientError("Groupname isnt specified"))
 		return
 	}
 
-	group, err := i.UamDAO.GetGroup(rq.GroupName)
+	group, err := i.UamDAO.GetGroup(groupName)
 	if exists, err := i.UamDAO.MemberExists(userID, group.ID); err != nil {
 		common.SendErrorResponse(c, err)
 		return
@@ -133,13 +144,13 @@ func (i *FileManagementEndpointImpl) DownloadFile(c *gin.Context) {
 		return
 	}
 
-	fileInfo, err := i.FmDAO.GetFileInfo(userID, rq.FileID, rq.GroupName)
+	fileInfo, err := i.FmDAO.GetFileInfo(userID, uint(fileID), groupName)
 	if err != nil {
 		common.SendErrorResponse(c, err)
 	}
 
 	c.Writer.Header().Add("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileInfo.Name))
-	filePath := fmt.Sprintf("%s/%s/%d", i.groupsDir, rq.GroupName, fileInfo.ID)
+	filePath := fmt.Sprintf("%s/%s/%d", i.groupsDir, groupName, fileInfo.ID)
 	c.File(filePath)
 }
 
@@ -201,13 +212,13 @@ func (i *FileManagementEndpointImpl) RetrieveAllFilesInfo(c *gin.Context) {
 		return
 	}
 
-	var rq common.GroupPayload
-	if err = c.ShouldBindJSON(&rq); err != nil {
-		common.SendErrorResponse(c, myerr.NewClientError("Invalid json body"))
+	groupName := c.Query("groupname")
+	if groupName == "" {
+		common.SendErrorResponse(c, myerr.NewClientError("Groupname isnt specified"))
 		return
 	}
 
-	fileInfos, err := i.FmDAO.GetAllFilesInfo(userID, rq.GroupName)
+	fileInfos, err := i.FmDAO.GetAllFilesInfo(userID, groupName)
 	if _, ok := err.(*myerr.ClientError); ok {
 		common.SendErrorResponse(c, myerr.NewClientErrorWrap(err, "Problem with file retrieval"))
 		return
