@@ -24,7 +24,7 @@ const (
 	//DownloadFileAPIEndpoint - api endpoint for downloading a file from a specific group
 	DownloadFileAPIEndpoint = protectedAPIPath + "/group/file/download"
 	//DeleteFileAPIEndpoint - api endpoint for deleting file, given a group
-	DeleteFileAPIEndpoint = protectedAPIPath + "/group/file/delete"
+	DeleteFileAPIEndpoint = protectedAPIPath + "/group/file/deletion"
 	//GetAllFilesAPIEndpoint - api endpoint for fetching all files, uploaded for a specific group
 	GetAllFilesAPIEndpoint = protectedAPIPath + "/group/files"
 	//GetAllGroupsAPIEndpoint - api endpoint for fetching all existing groups
