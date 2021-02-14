@@ -16,6 +16,24 @@ representing some of the information in form of a table.
 Before using the client, one must also install `go`(preferably version `1.5.*`) and explicitly set the environment variable `HOST_URL`, to specify the host url 
 of the server. For instance: `http://localhost:8080`.
 
+## Installation
+```bash
+# Clone repo
+git clone https://github.com/danielpenchev98/FMI-Golang.git
+
+# Go to web-server subproject
+cd FMI-Golang/UShare/web-client
+
+# Build web-server - several dependencies will be downloaded
+go build ./...
+
+# Go to cmd dir, containg the server startup file
+cd cmd
+
+# Start the server
+go run client.go
+```
+
 ## Commands
 Every single command begins with executing `client.go` in the `cmd` package
 
