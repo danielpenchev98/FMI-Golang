@@ -46,7 +46,7 @@ The following environment variables must be set:
 git clone https://github.com/danielpenchev98/FMI-Golang.git
 
 # Go to web-server subproject
-cd FMI-Golang/web-server
+cd FMI-Golang/UShare/web-server
 
 # Build web-server - several dependencies will be downloaded
 go build ./...
