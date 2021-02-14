@@ -10,22 +10,26 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
+//MembershipRequest - request representing request for adding a user to a group
 type MembershipRequest struct {
 	GroupPayload
 	Username string `json:"username"`
 }
 
+//GroupInfo - contains all information about a group
 type GroupInfo struct {
 	ID      uint
 	OwnerID uint
 	Name    string
 }
 
+//GroupsInfoResponse - response, containing information about multiple groups
 type GroupsInfoResponse struct {
 	Status     uint        `json:"status"`
 	GroupsInfo []GroupInfo `json:"groups"`
 }
 
+//CreateGroup - command for creation of group
 func CreateGroup(hostURL, token string) {
 	createGroupCommand := flag.NewFlagSet("create-group", flag.ExitOnError)
 	groupName := createGroupCommand.String("grp", "", "Name of the group to be created")
@@ -52,6 +56,7 @@ func CreateGroup(hostURL, token string) {
 	fmt.Printf("Group %s was succesfully created", *groupName)
 }
 
+//DeleteGroup - command for deletion of group
 func DeleteGroup(hostURL, token string) {
 	deleteGroupCommand := flag.NewFlagSet("delete-group", flag.ExitOnError)
 	groupName := deleteGroupCommand.String("grp", "", "Name of the group to be deleted")
@@ -78,6 +83,7 @@ func DeleteGroup(hostURL, token string) {
 	fmt.Printf("Group %s was succesfully deleted", *groupName)
 }
 
+//AddMember - command for creation of membership
 func AddMember(hostURL, token string) {
 	addMemberCommand := flag.NewFlagSet("add-member", flag.ExitOnError)
 	username := addMemberCommand.String("usr", "", "Name of the user to be added to the group")
@@ -106,6 +112,7 @@ func AddMember(hostURL, token string) {
 	fmt.Printf("User %s was successfully added to group %s\n", *username, *groupName)
 }
 
+//RemoveMember - command for revocation of membership
 func RemoveMember(hostURL, token string) {
 	removeMemberCommand := flag.NewFlagSet("remove-member", flag.ExitOnError)
 
@@ -135,6 +142,7 @@ func RemoveMember(hostURL, token string) {
 	fmt.Printf("User %s was successfully removed from group %s\n", *username, *groupName)
 }
 
+//ShowAllGroups - command for showing information about all groups
 func ShowAllGroups(hostURL, token string) {
 	successBody := GroupsInfoResponse{}
 
