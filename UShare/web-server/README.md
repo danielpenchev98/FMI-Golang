@@ -58,6 +58,12 @@ cd cmd
 go run server.go
 ```
 
+## Running tests
+```bash
+# Execute it in web-server directory
+ginkgo ./...
+```
+
 ## API endpoints
 There are 2 types of endpoints - `public`, which can be access freely, and `protected`, which additionaly require `JWToken` in the `Auth Header` 
 Also every server response sends `JSON object` with the `status code` of the request. This detail will be skipped in the table below.
