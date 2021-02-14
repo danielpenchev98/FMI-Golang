@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-//User is a model representing a record in the table of Users
+//Membership is a model representing a record in the table of Memberships
 type Membership struct {
 	ID        uint `gorm:"primarykey"`
 	CreatedAt time.Time

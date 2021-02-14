@@ -33,17 +33,17 @@ func NewFmDAOImpl(dbConn *gorm.DB) *FmDAOImpl {
 }
 
 //Migrate - updates the models in the db
-func (f *FmDAOImpl) Migrate() error {
-	return f.dbConn.AutoMigrate(models.FileInfo{})
+func (i *FmDAOImpl) Migrate() error {
+	return i.dbConn.AutoMigrate(models.FileInfo{})
 }
 
 //AddFileInfo - saves metadate for a newly added file (just like in linux with inodes)
-func (f *FmDAOImpl) AddFileInfo(userID uint, fileName string, groupName string) (uint, error) {
+func (i *FmDAOImpl) AddFileInfo(userID uint, fileName string, groupName string) (uint, error) {
 	var (
 		fileID uint
 		err    error
 	)
-	err = f.dbConn.Transaction(func(tx *gorm.DB) error {
+	err = i.dbConn.Transaction(func(tx *gorm.DB) error {
 
 		group, err := getGroupWithConn(tx, groupName)
 		if err != nil {
@@ -78,8 +78,8 @@ func (f *FmDAOImpl) AddFileInfo(userID uint, fileName string, groupName string) 
 }
 
 //RemoveFileInfo - removes the file matadata from the db
-func (f *FmDAOImpl) RemoveFileInfo(userID uint, fileID uint, groupName string) error {
-	return f.dbConn.Transaction(func(tx *gorm.DB) error {
+func (i *FmDAOImpl) RemoveFileInfo(userID uint, fileID uint, groupName string) error {
+	return i.dbConn.Transaction(func(tx *gorm.DB) error {
 		group, err := getGroupWithConn(tx, groupName)
 		if err != nil {
 			return err
@@ -105,10 +105,10 @@ func (f *FmDAOImpl) RemoveFileInfo(userID uint, fileID uint, groupName string) e
 }
 
 //GetFileInfo - fetches metadata for a particular file
-func (f *FmDAOImpl) GetFileInfo(userID uint, fileID uint, groupName string) (models.FileInfo, error) {
+func (i *FmDAOImpl) GetFileInfo(userID uint, fileID uint, groupName string) (models.FileInfo, error) {
 
 	var count int64
-	result := f.dbConn.Table("memberships").Joins("inner join groups on memberships.group_id = groups.id").
+	result := i.dbConn.Table("memberships").Joins("inner join groups on memberships.group_id = groups.id").
 		Where("groups.name = ?", groupName).
 		Where("memberships.user_id = ?", userID).
 		Count(&count)
@@ -119,7 +119,7 @@ func (f *FmDAOImpl) GetFileInfo(userID uint, fileID uint, groupName string) (mod
 		return models.FileInfo{}, myerr.NewClientError("You arent a member of the group.")
 	}
 
-	fileInfo, err := getFileInfoWithConn(f.dbConn, fileID)
+	fileInfo, err := getFileInfoWithConn(i.dbConn, fileID)
 	if err != nil {
 		return models.FileInfo{}, err
 	}
@@ -127,6 +127,7 @@ func (f *FmDAOImpl) GetFileInfo(userID uint, fileID uint, groupName string) (mod
 
 }
 
+//GetAllFilesInfo - returns information about all files, given a praticular group
 func (i *FmDAOImpl) GetAllFilesInfo(userID uint, groupName string) ([]models.FileInfo, error) {
 	var count int64
 	result := i.dbConn.Table("memberships").Joins("inner join groups on memberships.group_id = groups.id").

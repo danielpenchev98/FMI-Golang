@@ -60,7 +60,7 @@ func NewServerError(description string) *ServerError {
 	}
 }
 
-//NewServerError - creates an instance of ServerError, wrapping around a given error
+//NewServerErrorWrap - creates an instance of ServerError, wrapping around a given error
 func NewServerErrorWrap(err error, description string) *ServerError {
 	return &ServerError{
 		Err: errors.Wrapf(err, description),

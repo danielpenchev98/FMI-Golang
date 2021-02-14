@@ -9,15 +9,18 @@ import (
 	"github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/db/dao"
 )
 
+//GroupEraserJob - interface for group erase job
 type GroupEraserJob interface {
 	DeleteGroups()
 }
 
+//GroupEraserJobImpl - implementation of GroupEraserJob
 type GroupEraserJobImpl struct {
 	uamDAO    dao.UamDAO
 	groupsDir string
 }
 
+//NewGroupEraserJobImpl - creates an instance of GroupEraserJobImpl
 func NewGroupEraserJobImpl(uamDAO dao.UamDAO, groupsDir string) *GroupEraserJobImpl {
 	return &GroupEraserJobImpl{
 		uamDAO:    uamDAO,
@@ -25,6 +28,7 @@ func NewGroupEraserJobImpl(uamDAO dao.UamDAO, groupsDir string) *GroupEraserJobI
 	}
 }
 
+//DeleteGroups - deletes all deactivated job resources
 func (i *GroupEraserJobImpl) DeleteGroups() {
 	groupNames, err := i.uamDAO.GetDeactivatedGroupNames()
 	if err != nil {
