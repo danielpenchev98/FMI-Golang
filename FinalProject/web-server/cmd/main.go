@@ -65,7 +65,7 @@ func main() {
 			protected.DELETE("/group/deletion", uamEndpoint.DeleteGroup)
 			protected.POST("/group/file/upload", fmEndpoint.UploadFile)
 			protected.GET("/group/file/download", fmEndpoint.DownloadFile)
-			protected.DELETE("/group/file/delete", fmEndpoint.DeleteFile)
+			protected.DELETE("/group/file/deletion", fmEndpoint.DeleteFile)
 			protected.GET("/group/files", fmEndpoint.RetrieveAllFilesInfo)
 			protected.GET("/groups", uamEndpoint.GetAllGroupsInfo)
 			protected.GET("/users", uamEndpoint.GetAllUsersInfo)
