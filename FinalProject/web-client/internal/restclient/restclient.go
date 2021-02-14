@@ -7,6 +7,7 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+//RestClient - interface, declaring rest client methods
 type RestClient interface {
 	Post(url string, rqBody, successBody interface{}) error
 	Get(url string, successBody, errorBody interface{}) error
@@ -15,6 +16,7 @@ type RestClient interface {
 	DownloadFile(url string, targetPath string, reqBody interface{}) error
 }
 
+//RestClientImpl - implementation of RestClient
 type RestClientImpl struct {
 	client   *resty.Client
 	jwtToken string
@@ -25,6 +27,7 @@ type errorResponse struct {
 	ErrorMsg string `json:"message"`
 }
 
+//NewRestClientImpl - used for creation of instances of RestClientImpl
 func NewRestClientImpl(jwtToken string) *RestClientImpl {
 	return &RestClientImpl{
 		client:   resty.New(),
@@ -32,6 +35,7 @@ func NewRestClientImpl(jwtToken string) *RestClientImpl {
 	}
 }
 
+//Post - creation of resources
 func (i *RestClientImpl) Post(url string, rqBody, successBody interface{}) error {
 	errorBody := errorResponse{}
 	resp, err := i.basicRequest(successBody, &errorBody).
@@ -48,6 +52,7 @@ func (i *RestClientImpl) Post(url string, rqBody, successBody interface{}) error
 	return nil
 }
 
+//Get - retrieval of resources
 func (i *RestClientImpl) Get(url string, successBody interface{}) error {
 	errorBody := errorResponse{}
 	resp, err := i.basicRequest(successBody, &errorBody).
@@ -63,6 +68,7 @@ func (i *RestClientImpl) Get(url string, successBody interface{}) error {
 	return nil
 }
 
+//Delete - deletion of resources
 func (i *RestClientImpl) Delete(url string, reqBody, successBody interface{}) error {
 	errorBody := errorResponse{}
 	resp, err := i.basicRequest(successBody, &errorBody).
@@ -79,6 +85,7 @@ func (i *RestClientImpl) Delete(url string, reqBody, successBody interface{}) er
 	return nil
 }
 
+//UploadFile - similar to POST, but it uses form-data to include the payload (file)
 func (i *RestClientImpl) UploadFile(url string, filePath string, successBody interface{}) error {
 	errorBody := errorResponse{}
 	req := i.client.R().
@@ -105,6 +112,7 @@ func (i *RestClientImpl) UploadFile(url string, filePath string, successBody int
 	return nil
 }
 
+//DownloadFile - similar to GET, but it requires the target location where the file will be downloaded
 func (i *RestClientImpl) DownloadFile(url string, targetPath string) error {
 	errorBody := errorResponse{}
 	req := i.client.R().

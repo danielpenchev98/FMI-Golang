@@ -11,26 +11,31 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
+//LoginResponse - response, containing the jw token
 type LoginResponse struct {
 	Status int    `json:"status"`
 	Token  string `json:"token"`
 }
 
+//CredentialsPayload - information used for the login and registration of user
 type CredentialsPayload struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
+//UserInfo - contains information about a user
 type UserInfo struct {
 	ID       uint   `json:"id"`
 	Username string `json:"username"`
 }
 
-type UsersInfo struct {
+//UsersInfoResponse - response containing information about multiple users
+type UsersInfoResponse struct {
 	Status    uint       `json:"status"`
 	UsersInfo []UserInfo `json:"users"`
 }
 
+//RegisterUser - command for registration of user
 func RegisterUser(hostURL string) {
 	registrationCommand := flag.NewFlagSet("register", flag.ExitOnError)
 
@@ -49,7 +54,6 @@ func RegisterUser(hostURL string) {
 		Password: *password,
 	}
 
-	successBody := BasicResponse{}
 	restClient := restclient.NewRestClientImpl("")
 	url := hostURL + endpoints.RegisterAPIEndpoint
 	err := restClient.Post(url, &rqBody, &successBody)
@@ -60,9 +64,9 @@ func RegisterUser(hostURL string) {
 	}
 
 	fmt.Println("User successfully created")
-	fmt.Println(successBody.Status)
 }
 
+//Login - command for login of user
 func Login(hostURL string) {
 	loginCommand := flag.NewFlagSet("login", flag.ExitOnError)
 
@@ -96,6 +100,7 @@ func Login(hostURL string) {
 	fmt.Println("Login is successful")
 }
 
+//Logout - command for logout of user
 func Logout() {
 	if _, err := os.Stat("/tmp/jwt"); err != nil {
 		os.Remove("/tmp/jwt")
@@ -103,8 +108,9 @@ func Logout() {
 	fmt.Println("Logout successfull")
 }
 
+//ShowAllUsers - command for showing information about all users
 func ShowAllUsers(hostURL string, token string) {
-	successBody := UsersInfo{}
+	successBody := UsersInfoResponse{}
 
 	restClient := restclient.NewRestClientImpl(token)
 	url := hostURL + endpoints.GetAllUsersAPIEndpoint
@@ -122,6 +128,7 @@ func ShowAllUsers(hostURL string, token string) {
 	PrintTable(table.Row{"ID", "Username"}, tableRows)
 }
 
+//ShowAllMembers - command for showing information about all members of a group
 func ShowAllMembers(hostURL, token string) {
 	getAllMembers := flag.NewFlagSet("show-all-members", flag.ExitOnError)
 	groupName := getAllMembers.String("grp", "", "Name of the group")
@@ -132,7 +139,7 @@ func ShowAllMembers(hostURL, token string) {
 		getAllMembers.PrintDefaults()
 		os.Exit(1)
 	}
-	successBody := UsersInfo{}
+	successBody := UsersInfoResponse{}
 
 	restClient := restclient.NewRestClientImpl(token)
 	url := fmt.Sprintf("%s%s?group_name=%s", hostURL, endpoints.GetAllMembersAPIEndpoint, *groupName)

@@ -11,15 +11,18 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
+//FileUploadResponse - used to extract the id of the file, which was uploaded on the server
 type FileUploadResponse struct {
 	FileID uint `json:"file_id"`
 }
 
+//FileRequest - used to request file information
 type FileRequest struct {
 	GroupPayload
 	FileID uint `json:"file_id"`
 }
 
+//FileInfo - contains all the information about a file
 type FileInfo struct {
 	ID         uint
 	Name       string
@@ -27,11 +30,13 @@ type FileInfo struct {
 	UploadedAt time.Time
 }
 
+//FilesInfoResponse - response, containing information about multiple files
 type FilesInfoResponse struct {
 	Status    int        `json:"status"`
 	FilesInfo []FileInfo `json:"files"`
 }
 
+//UploadFile - command for uploading a file to the server
 func UploadFile(hostURL, token string) {
 	uploadFileCommand := flag.NewFlagSet("upload-file", flag.ExitOnError)
 	filePath := uploadFileCommand.String("filepath", "", "Path to the file")
@@ -57,6 +62,7 @@ func UploadFile(hostURL, token string) {
 	fmt.Printf("File was successfully uploaded in group %s.\n The id of the file is %d\n", *groupName, successBody.FileID)
 }
 
+//DownloadFile - command for downloading a file from the server
 func DownloadFile(hostURL, token string) {
 	downloadFileCommand := flag.NewFlagSet("download-file", flag.ExitOnError)
 	fileID := downloadFileCommand.Int("fileid", -1, "File id")
@@ -82,6 +88,7 @@ func DownloadFile(hostURL, token string) {
 	fmt.Println("File was successfully download.\n")
 }
 
+//DeleteFile - command for deletion of file on the server
 func DeleteFile(hostURL, token string) {
 	deleteFileCommand := flag.NewFlagSet("delete-file", flag.ExitOnError)
 	fileID := deleteFileCommand.Int("fileid", -1, "File id")
@@ -111,6 +118,7 @@ func DeleteFile(hostURL, token string) {
 	fmt.Println("File was successfully deleted")
 }
 
+//ShowAllFilesInGroup - command for fetching information about all files uploaded for a specific group
 func ShowAllFilesInGroup(hostURL, token string) {
 	getAllFilesCommand := flag.NewFlagSet("show-all-files", flag.ExitOnError)
 	groupName := getAllFilesCommand.String("grp", "", "Name of the group")
