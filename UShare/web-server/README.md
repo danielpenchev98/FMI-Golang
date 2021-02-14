@@ -40,10 +40,22 @@ The following environment variables must be set:
 * `ISSUER` - env variable, containing the name of authority, issuing the token
 * `EXPIRATION` - env variable, containing the expiration time of the issued tokens (in hours)
 
-## Server startup
-In the `cmd` package run the following command:
-```Golang
-go run main.go
+## Installation
+```bash
+# Clone repo
+git clone https://github.com/danielpenchev98/FMI-Golang.git
+
+# Go to web-server subproject
+cd FMI-Golang/web-server
+
+# Build web-server - several dependencies will be downloaded
+go build ./...
+
+# Go to cmd dir, containg the server startup file
+cd cmd
+
+# Start the server
+go run server.go
 ```
 
 ## API endpoints
