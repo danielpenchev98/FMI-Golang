@@ -3,7 +3,6 @@ package commands
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-client/internal/endpoints"
@@ -96,16 +95,8 @@ func Login(hostURL string) {
 		return
 	}
 
-	ioutil.WriteFile("/tmp/jwt", []byte(successBody.Token), 0644)
 	fmt.Println("Login is successful")
-}
-
-//Logout - command for logout of user
-func Logout() {
-	if _, err := os.Stat("/tmp/jwt"); err != nil {
-		os.Remove("/tmp/jwt")
-	}
-	fmt.Println("Logout successfull")
+	fmt.Printf("Please set the env variable 'JWT' with the following value:\n%s", successBody.Token)
 }
 
 //ShowAllUsers - command for showing information about all users

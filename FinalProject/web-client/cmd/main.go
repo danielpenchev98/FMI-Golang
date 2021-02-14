@@ -1,10 +1,7 @@
 package main
 
 import (
-	"errors"
-	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-client/internal/commands"
@@ -17,18 +14,13 @@ func main() {
 	}
 
 	command := os.Args[1]
-	if command == "target" {
-		targetServer()
-	} else {
-		commandsWithHostURL(command)
-	}
-
+	commandsWithHostURL(command)
 }
 
 func commandsWithHostURL(command string) {
-	hostURL, err := retrieveHostURL()
-	if err != nil {
-		fmt.Println(err.Error())
+	hostURL := os.Getenv("HOST_URL")
+	if hostURL == "" {
+		fmt.Print("HOST_URL hasnt been set")
 		return
 	}
 
@@ -43,15 +35,13 @@ func commandsWithHostURL(command string) {
 }
 
 func commandsWithAuth(command, hostURL string) {
-	token, err := retrieveJwtToken()
-	if err != nil {
-		fmt.Println(err.Error())
+	token := os.Getenv("JWT")
+	if hostURL == "" {
+		fmt.Print("JWT hasnt been set. Please set this environment variable. To get its value, please login again")
 		return
 	}
 
 	switch command {
-	case "logout":
-		commands.Logout()
 	case "create-group":
 		commands.CreateGroup(hostURL, token)
 	case "delete-group":
@@ -77,40 +67,4 @@ func commandsWithAuth(command, hostURL string) {
 	default:
 		fmt.Printf("Invalid command [%s]\n", command)
 	}
-}
-
-func targetServer() {
-	targetServerCommand := flag.NewFlagSet("target", flag.ExitOnError)
-	hostURL := targetServerCommand.String("host", "", "Host url of the server")
-
-	targetServerCommand.Parse(os.Args[2:])
-
-	ioutil.WriteFile("/tmp/host", []byte(*hostURL), 0644)
-	fmt.Printf("Server with host url [%s] was successfully targeted\n", *hostURL)
-}
-
-func retrieveJwtToken() (string, error) {
-	if _, err := os.Stat("/tmp/jwt"); os.IsNotExist(err) {
-		return "", errors.New("Problem with authentication, please login again")
-	}
-
-	token, err := ioutil.ReadFile("/tmp/jwt")
-	if string(token) == "" || err != nil {
-		return "", errors.New("Problem with authentication, please login again")
-	}
-
-	return string(token), nil
-}
-
-func retrieveHostURL() (string, error) {
-	if _, err := os.Stat("/tmp/host"); os.IsNotExist(err) {
-		return "", errors.New("Problem with host url, please target the server again")
-	}
-
-	url, err := ioutil.ReadFile("/tmp/host")
-	if string(url) == "" || err != nil {
-		return "", errors.New("Problem with host url, please target the server again")
-	}
-
-	return string(url), nil
 }
