@@ -14,9 +14,12 @@ import (
 var _ = Describe("Auth module", func() {
 
 	const (
-		secret     = "secret"
-		issuer     = "issuer"
-		expiration = 24
+		secretKey     = "SECRET"
+		secretVal     = "secret"
+		issuerKey     = "ISSUER"
+		issuerVal     = "issuer"
+		expirationKey = "EXPIRATION"
+		expirationVal = 24
 	)
 
 	BeforeEach(func() {
@@ -25,7 +28,7 @@ var _ = Describe("Auth module", func() {
 
 	Context("NewJwtCreatorImpl", func() {
 		When("Creating new Jwt creator", func() {
-			Context("when secret env variable is missing", func() {
+			Context("and secret env variable is missing", func() {
 				It("returns error", func() {
 					_, err := auth.NewJwtCreatorImpl()
 					Expect(err).To(HaveOccurred())
@@ -34,15 +37,15 @@ var _ = Describe("Auth module", func() {
 				})
 			})
 
-			Context("when secret env variable exists", func() {
+			Context("and secret env variable exists", func() {
 				BeforeEach(func() {
-					os.Setenv("secret", secret)
+					os.Setenv(secretKey, secretVal)
 				})
 				AfterEach(func() {
-					os.Unsetenv("secret")
+					os.Unsetenv(secretKey)
 				})
 
-				Context("when issuer env variable is missing", func() {
+				Context("and issuer env variable is missing", func() {
 					It("returns error", func() {
 						_, err := auth.NewJwtCreatorImpl()
 						Expect(err).To(HaveOccurred())
@@ -51,16 +54,16 @@ var _ = Describe("Auth module", func() {
 					})
 				})
 
-				Context("when issuer env variable exists", func() {
+				Context("and issuer env variable exists", func() {
 					BeforeEach(func() {
-						os.Setenv("issuer", issuer)
+						os.Setenv(issuerKey, issuerVal)
 					})
 
 					AfterEach(func() {
-						os.Unsetenv("issuer")
+						os.Unsetenv(issuerKey)
 					})
 
-					Context("when expiration env variable is missing", func() {
+					Context("and expiration env variable is missing", func() {
 						It("returns error", func() {
 							_, err := auth.NewJwtCreatorImpl()
 							Expect(err).To(HaveOccurred())
@@ -69,14 +72,14 @@ var _ = Describe("Auth module", func() {
 						})
 					})
 
-					Context("when expiration env vairable exitst", func() {
+					Context("and expiration env vairable exitst", func() {
 						Context("and expiration variable is in illegal format", func() {
 							BeforeEach(func() {
-								os.Setenv("expiration", "wrong-format")
+								os.Setenv(expirationKey, "wrong-format")
 							})
 
 							AfterEach(func() {
-								os.Unsetenv("expiration")
+								os.Unsetenv(expirationKey)
 							})
 
 							It("returns error", func() {
@@ -89,20 +92,20 @@ var _ = Describe("Auth module", func() {
 
 						Context("and expiration variable is in legal format", func() {
 							BeforeEach(func() {
-								os.Setenv("expiration", strconv.Itoa(expiration))
+								os.Setenv(expirationKey, strconv.Itoa(expirationVal))
 							})
 
 							AfterEach(func() {
-								os.Unsetenv("expiration")
+								os.Unsetenv(expirationKey)
 							})
 
 							It("succeeds", func() {
 								actualResult, err := auth.NewJwtCreatorImpl()
 								Expect(err).NotTo(HaveOccurred())
 								expectedResult := &auth.JwtCreatorImpl{
-									Secret:          secret,
-									Issuer:          issuer,
-									ExpirationHours: expiration,
+									Secret:          secretVal,
+									Issuer:          issuerVal,
+									ExpirationHours: expirationVal,
 								}
 								Expect(actualResult).To(Equal(expectedResult))
 							})
@@ -116,9 +119,9 @@ var _ = Describe("Auth module", func() {
 		var jwtCreator auth.JwtCreator
 		BeforeEach(func() {
 			jwtCreator = &auth.JwtCreatorImpl{
-				Secret:          secret,
-				Issuer:          issuer,
-				ExpirationHours: expiration,
+				Secret:          secretVal,
+				Issuer:          issuerVal,
+				ExpirationHours: expirationVal,
 			}
 		})
 
@@ -144,7 +147,7 @@ var _ = Describe("Auth module", func() {
 					claims, err := jwtCreator.ValidateToken(token)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(claims.UserID).To(Equal(uint(userID)))
-					Expect(claims.Issuer).To(Equal(issuer))
+					Expect(claims.Issuer).To(Equal(issuerVal))
 				})
 			})
 
@@ -152,8 +155,8 @@ var _ = Describe("Auth module", func() {
 
 				BeforeEach(func() {
 					jwtCreator = &auth.JwtCreatorImpl{
-						Secret:          secret,
-						Issuer:          issuer,
+						Secret:          secretVal,
+						Issuer:          issuerVal,
 						ExpirationHours: 0,
 					}
 
