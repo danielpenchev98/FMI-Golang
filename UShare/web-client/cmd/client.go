@@ -14,6 +14,11 @@ func main() {
 	}
 
 	command := os.Args[1]
+	if command == "help" {
+		commands.Help()
+		return
+	}
+
 	commandsWithHostURL(command)
 }
 
@@ -66,5 +71,6 @@ func commandsWithAuth(command, hostURL string) {
 		commands.ShowAllMembers(hostURL, token)
 	default:
 		fmt.Printf("Invalid command [%s]\n", command)
+		commands.Help()
 	}
 }

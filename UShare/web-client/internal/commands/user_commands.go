@@ -58,7 +58,7 @@ func RegisterUser(hostURL string) {
 	err := restClient.Post(url, &rqBody, nil)
 
 	if err != nil {
-		fmt.Printf("Problem with the registration request. %s", err.Error())
+		fmt.Printf("Problem with the registration request. %s\n", err.Error())
 		return
 	}
 
@@ -91,12 +91,12 @@ func Login(hostURL string) {
 	err := restClient.Post(url, &rqBody, &successBody)
 
 	if err != nil {
-		fmt.Printf("Problem with the login request. %s", err.Error())
+		fmt.Printf("Problem with the login request. %s\n", err.Error())
 		return
 	}
 
 	fmt.Println("Login is successful")
-	fmt.Printf("Please set the env variable 'JWT' with the following value:\n%s", successBody.Token)
+	fmt.Printf("Please set the env variable 'JWT' with the following value:\n%s\n", successBody.Token)
 }
 
 //ShowAllUsers - command for showing information about all users
@@ -108,7 +108,7 @@ func ShowAllUsers(hostURL string, token string) {
 	err := restClient.Get(url, &successBody)
 
 	if err != nil {
-		fmt.Printf("Problem with the group creation request. %s", err.Error())
+		fmt.Printf("Problem with the group creation request. %s\n", err.Error())
 		return
 	}
 
@@ -137,7 +137,7 @@ func ShowAllMembers(hostURL, token string) {
 	err := restClient.Get(url, &successBody)
 
 	if err != nil {
-		fmt.Printf("Problem with the group creation request. %s", err.Error())
+		fmt.Printf("Problem with the group creation request. %s\n", err.Error())
 		return
 	}
 

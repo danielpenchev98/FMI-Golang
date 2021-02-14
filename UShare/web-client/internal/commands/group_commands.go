@@ -36,8 +36,8 @@ func CreateGroup(hostURL, token string) {
 
 	createGroupCommand.Parse(os.Args[2:])
 	if *groupName == "" {
-		flag.PrintDefaults()
-		os.Exit(1)
+		createGroupCommand.PrintDefaults()
+		return
 	}
 
 	rqBody := GroupPayload{
@@ -49,11 +49,11 @@ func CreateGroup(hostURL, token string) {
 	err := restClient.Post(url, &rqBody, nil)
 
 	if err != nil {
-		fmt.Printf("Problem with the group creation request. %s", err.Error())
+		fmt.Printf("Problem with the group creation request. %s\n", err.Error())
 		return
 	}
 
-	fmt.Printf("Group %s was succesfully created", *groupName)
+	fmt.Printf("Group %s was succesfully created\n", *groupName)
 }
 
 //DeleteGroup - command for deletion of group
@@ -76,7 +76,7 @@ func DeleteGroup(hostURL, token string) {
 	err := restClient.Delete(url, &rqBody, nil)
 
 	if err != nil {
-		fmt.Printf("Problem with the group creation request. %s", err.Error())
+		fmt.Printf("Problem with the group creation request. %s\n", err.Error())
 		return
 	}
 
@@ -87,7 +87,7 @@ func DeleteGroup(hostURL, token string) {
 func AddMember(hostURL, token string) {
 	addMemberCommand := flag.NewFlagSet("add-member", flag.ExitOnError)
 	username := addMemberCommand.String("usr", "", "Name of the user to be added to the group")
-	groupName := addMemberCommand.String("grp", "", "Name of the group to be deleted")
+	groupName := addMemberCommand.String("grp", "", "Name of the group")
 	addMemberCommand.Parse(os.Args[2:])
 
 	if *groupName == "" || *username == "" {
@@ -105,7 +105,7 @@ func AddMember(hostURL, token string) {
 	err := restClient.Post(url, &rqBody, nil)
 
 	if err != nil {
-		fmt.Printf("Problem with the group creation request. %s", err.Error())
+		fmt.Printf("Problem with the group creation request. %s\n", err.Error())
 		return
 	}
 
@@ -116,8 +116,8 @@ func AddMember(hostURL, token string) {
 func RemoveMember(hostURL, token string) {
 	removeMemberCommand := flag.NewFlagSet("remove-member", flag.ExitOnError)
 
-	username := removeMemberCommand.String("usr", "", "Name of the user to be added to the group")
-	groupName := removeMemberCommand.String("grp", "", "Name of the group to be deleted")
+	username := removeMemberCommand.String("usr", "", "Name of the user to be removed from the group")
+	groupName := removeMemberCommand.String("grp", "", "Name of the group")
 
 	removeMemberCommand.Parse(os.Args[2:])
 	if *groupName == "" || *username == "" {
@@ -135,7 +135,7 @@ func RemoveMember(hostURL, token string) {
 	err := restClient.Delete(url, &rqBody, nil)
 
 	if err != nil {
-		fmt.Printf("Problem with the group creation request. %s", err.Error())
+		fmt.Printf("Problem with the group creation request. %s\n", err.Error())
 		return
 	}
 
@@ -151,7 +151,7 @@ func ShowAllGroups(hostURL, token string) {
 	err := restClient.Get(url, &successBody)
 
 	if err != nil {
-		fmt.Printf("Problem with the group creation request. %s", err.Error())
+		fmt.Printf("Problem with the group creation request. %s\n", err.Error())
 		return
 	}
 

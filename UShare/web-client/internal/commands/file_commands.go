@@ -55,7 +55,7 @@ func UploadFile(hostURL, token string) {
 	err := restClient.UploadFile(url, *filePath, &successBody)
 
 	if err != nil {
-		fmt.Printf("Problem with the file upload request. %s", err.Error())
+		fmt.Printf("Problem with the file upload request. %s\n", err.Error())
 		return
 	}
 
@@ -92,7 +92,7 @@ func DownloadFile(hostURL, token string) {
 func DeleteFile(hostURL, token string) {
 	deleteFileCommand := flag.NewFlagSet("delete-file", flag.ExitOnError)
 	fileID := deleteFileCommand.Int("fileid", -1, "File id")
-	groupName := deleteFileCommand.String("grp", "", "Name of the group, in which the file will be uploaded")
+	groupName := deleteFileCommand.String("grp", "", "Name of the group")
 
 	deleteFileCommand.Parse(os.Args[2:])
 
@@ -111,7 +111,7 @@ func DeleteFile(hostURL, token string) {
 	err := restClient.Delete(url, &reqBody, nil)
 
 	if err != nil {
-		fmt.Printf("Problem with the file deletion request. %s", err.Error())
+		fmt.Printf("Problem with the file deletion request. %s\n", err.Error())
 		return
 	}
 
@@ -140,7 +140,7 @@ func ShowAllFilesInGroup(hostURL, token string) {
 	err := restClient.Post(url, &rqBody, &successBody)
 
 	if err != nil {
-		fmt.Printf("Problem with the group creation request. %s", err.Error())
+		fmt.Printf("Problem with the group creation request. %s\n", err.Error())
 		return
 	}
 
