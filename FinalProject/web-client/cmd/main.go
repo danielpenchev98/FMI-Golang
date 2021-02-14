@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"time"
 
-	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-client/cmd/endpoints"
-	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-client/internal/restclient"
+	"github.com/danielpenchev98/FMI-Golang/FinalProject/web-client/internal/commands"
 )
 
+/*
 type CredentialsPayload struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -19,8 +18,9 @@ type CredentialsPayload struct {
 
 type BasicResponse struct {
 	Status int `json:"status"`
-}
+}*/
 
+/*
 func registerUser(hostURL string) {
 	registrationCommand := flag.NewFlagSet("register", flag.ExitOnError)
 
@@ -95,8 +95,9 @@ func logout() {
 		os.Remove("/tmp/jwt")
 	}
 	fmt.Println("Logout successfull")
-}
+}*/
 
+/*
 type GroupPayload struct {
 	GroupName string `json:"group_name"`
 }
@@ -213,8 +214,9 @@ func removeUserFromGroup(hostURL, token string) {
 	}
 
 	fmt.Printf("User %s was successfully removed from group %s\n", *username, *groupName)
-}
+}*/
 
+/*
 type FileUploadResponse struct {
 	FileID uint `json:"file_id"`
 }
@@ -340,12 +342,11 @@ func showAllFilesInGroup(hostURL, token string) {
 		return
 	}
 
-	fmt.Println("---------Files----------")
+	tableRows := make([]table.Row, len(successBody.FilesInfo))
 	for _, fileInfo := range successBody.FilesInfo {
-		fmt.Printf("ID: %d\nName: %s\nUploadedAt: %v\nOwnerID: %d\n", fileInfo.ID, fileInfo.Name, fileInfo.UploadedAt, fileInfo.OwnerID)
-		fmt.Println("---------------")
+		tableRows = append(tableRows, table.Row{fileInfo.ID, fileInfo.Name, fileInfo.UploadedAt, fileInfo.OwnerID})
 	}
-
+	printTable(table.Row{"ID", "Name", "UploadedAt", "OwnerID"}, tableRows)
 }
 
 type GroupInfo struct {
@@ -371,11 +372,11 @@ func showAllGroups(hostURL, token string) {
 		return
 	}
 
-	fmt.Println("---------Groups-----------")
+	tableRows := make([]table.Row, len(successBody.GroupsInfo))
 	for _, groupInfo := range successBody.GroupsInfo {
-		fmt.Printf("ID: %d\nName: %s\nOwnerID: %d\n", groupInfo.ID, groupInfo.Name, groupInfo.OwnerID)
-		fmt.Println("------------")
+		tableRows = append(tableRows, table.Row{groupInfo.ID, groupInfo.Name, groupInfo.OwnerID})
 	}
+	printTable(table.Row{"ID", "Name", "OwnerID"}, tableRows)
 }
 
 type UserInfo struct {
@@ -400,11 +401,11 @@ func showAllUsers(hostURL string, token string) {
 		return
 	}
 
-	fmt.Println("---------Users-----------")
+	tableRows := make([]table.Row, len(successBody.UsersInfo))
 	for _, userInfo := range successBody.UsersInfo {
-		fmt.Printf("ID: %d\nUsername: %s\n", userInfo.ID, userInfo.Username)
-		fmt.Println("------------")
+		tableRows = append(tableRows, table.Row{userInfo.ID, userInfo.Username})
 	}
+	printTable(table.Row{"ID", "Username"}, tableRows)
 }
 
 func showAllMembers(hostURL, token string) {
@@ -428,12 +429,12 @@ func showAllMembers(hostURL, token string) {
 		return
 	}
 
-	fmt.Println("---------Users-----------")
+	tableRows := make([]table.Row, len(successBody.UsersInfo))
 	for _, userInfo := range successBody.UsersInfo {
-		fmt.Printf("ID: %d\nName: %s\n", userInfo.ID, userInfo.Username)
-		fmt.Println("------------")
+		tableRows = append(tableRows, table.Row{userInfo.ID, userInfo.Username})
 	}
-}
+	printTable(table.Row{"ID", "Username"}, tableRows)
+}*/
 
 func targetServer() {
 	targetServerCommand := flag.NewFlagSet("target", flag.ExitOnError)
@@ -480,29 +481,29 @@ func commandsWithAuth(command, hostURL string) {
 
 	switch command {
 	case "logout":
-		logout()
+		commands.Logout()
 	case "create-group":
-		createGroup(hostURL, token)
+		commands.CreateGroup(hostURL, token)
 	case "delete-group":
-		deleteGroup(hostURL, token)
+		commands.DeleteGroup(hostURL, token)
 	case "add-member":
-		addUserToGroup(hostURL, token)
+		commands.AddMember(hostURL, token)
 	case "remove-member":
-		removeUserFromGroup(hostURL, token)
+		commands.RemoveMember(hostURL, token)
 	case "upload-file":
-		uploadFile(hostURL, token)
+		commands.UploadFile(hostURL, token)
 	case "download-file":
-		downloadFile(hostURL, token)
+		commands.DownloadFile(hostURL, token)
 	case "delete-file":
-		deleteFile(hostURL, token)
+		commands.DeleteFile(hostURL, token)
 	case "show-all-files":
-		showAllFilesInGroup(hostURL, token)
+		commands.ShowAllFilesInGroup(hostURL, token)
 	case "show-all-groups":
-		showAllGroups(hostURL, token)
+		commands.ShowAllGroups(hostURL, token)
 	case "show-all-users":
-		showAllUsers(hostURL, token)
+		commands.ShowAllUsers(hostURL, token)
 	case "show-all-members":
-		showAllMembers(hostURL, token)
+		commands.ShowAllMembers(hostURL, token)
 	default:
 		fmt.Printf("Invalid command [%s]\n", command)
 	}
@@ -517,9 +518,9 @@ func commandsWithHostURL(command string) {
 
 	switch command {
 	case "login":
-		login(hostURL)
+		commands.Login(hostURL)
 	case "register":
-		registerUser(hostURL)
+		commands.RegisterUser(hostURL)
 	default:
 		commandsWithAuth(command, hostURL)
 	}
