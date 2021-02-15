@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/danielpenchev98/FMI-Golang/UShare/web-server/api/rest"
 	"github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/auth"
@@ -32,6 +34,16 @@ func init() {
 }
 
 func main() {
+	portStr := os.Getenv("PORT")
+	if portStr == "" {
+		log.Fatal("Please set PORT env variable")
+	}
+
+	portNum, err := strconv.Atoi(portStr)
+	if err != nil {
+		log.Fatal("The env variable PORT has illegal port number")
+	}
+
 	jwtCreator, err := auth.NewJwtCreatorImpl()
 	if err != nil {
 		log.Fatal(myerr.NewServerErrorWrap(err, "Couldnt create a new Jwt Creator"))
@@ -72,7 +84,9 @@ func main() {
 			protected.GET("/group/users", uamEndpoint.GetAllUsersInGroup)
 		}
 	}
-	log.Fatal(router.Run(":8080"))
+
+	host := fmt.Sprintf("localhost:%d", portNum)
+	log.Fatal(router.Run(host))
 }
 
 func createUamDAO() dao.UamDAO {
