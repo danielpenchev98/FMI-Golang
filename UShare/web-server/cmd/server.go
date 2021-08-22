@@ -5,6 +5,11 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"net/http"
+	"os/signal"
+	"syscall"
+	"context"
+	"time"
 
 	"github.com/danielpenchev98/FMI-Golang/UShare/web-server/api/rest"
 	"github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/auth"
@@ -16,24 +21,18 @@ import (
 	val "github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/validator"
 	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron/v3"
+	"github.com/pkg/errors"
 )
 
 var router = gin.Default()
 var groupDirPath string
 
-func init() {
-	currDir, _ := os.Getwd()
-	groupDirPath = currDir + "/groups"
-	if _, err := os.Stat(groupDirPath); err == nil {
-		return
-	}
-
-	if err := os.Mkdir(groupDirPath, 0755); err != nil {
-		log.Fatal(myerr.NewServerErrorWrap(err, "Couldnt create directory for the groups"))
-	}
-}
-
 func main() {
+	host := os.Getenv("HOST")
+	if host == ""{
+		log.Fatal("Please set HOST")
+	}
+
 	portStr := os.Getenv("PORT")
 	if portStr == "" {
 		log.Fatal("Please set PORT env variable")
@@ -42,6 +41,10 @@ func main() {
 	portNum, err := strconv.Atoi(portStr)
 	if err != nil {
 		log.Fatal("The env variable PORT has illegal port number")
+	}
+
+	if err = createGroupsDir(); err != nil {
+		log.Fatal(err)
 	}
 
 	jwtCreator, err := auth.NewJwtCreatorImpl()
@@ -85,8 +88,51 @@ func main() {
 		}
 	}
 
-	host := fmt.Sprintf("localhost:%d", portNum)
-	log.Fatal(router.Run(host))
+	httpServer := &http.Server{
+        Addr:    fmt.Sprintf("%s:%d", host, portNum),
+        Handler: router,
+    }
+ 
+    go func() {
+        if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            panic(errors.Wrapf(err, "server listen-and-serve failed"))
+        }
+    }()
+ 
+    done := make(chan os.Signal, 1)
+    signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
+    <-done
+ 
+    //log.Info("shutting down http server...")
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+ 
+    if err := httpServer.Shutdown(ctx); err != nil {
+        panic(errors.Wrapf(err, "failed to shutdown server"))
+    }
+    // nolint:gosimple
+    select {
+    case <-ctx.Done():
+    }
+}
+
+func createGroupsDir() error {
+	currDir := os.Getenv("GROUP_DIR")
+	if currDir == "" {
+		return errors.New("Please set GROUP_DIR is not set")
+	}
+
+	groupDirPath = currDir + "/groups"
+	if _, err := os.Stat(groupDirPath); err == nil {
+		return nil
+	}
+
+	if err := os.Mkdir(groupDirPath, 0755); err != nil {
+		return myerr.NewServerErrorWrap(err, "Couldnt create directory for the groups")
+	}
+
+	return nil
+
 }
 
 func createUamDAO() dao.UamDAO {

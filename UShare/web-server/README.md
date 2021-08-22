@@ -30,6 +30,7 @@ The server uses the following external dependencies, which should be installed:
 
 The following environment variables must be set:
 ### Server configuration
+* `HOST` - env variable, containing the host name, on which the server will be running
 * `PORT` - env variable, containing the port number, which the server will run on
 ### DB configuration
 * `DB_NAME` - env variable, containing the name of the database
