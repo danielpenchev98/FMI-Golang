@@ -67,6 +67,7 @@ func main() {
 	{
 		public := v1.Group("/public")
 		{
+			public.GET("/healthcheck", rest.CheckHealth)
 			public.POST("/user/registration", uamEndpoint.CreateUser)
 			public.POST("/user/login", uamEndpoint.Login)
 		}
