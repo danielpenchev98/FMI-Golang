@@ -142,7 +142,9 @@ func (i *FmDAOImpl) GetAllFilesInfo(userID uint, groupName string) ([]models.Fil
 	}
 
 	var fileInfos []models.FileInfo
-	result = i.dbConn.Table("file_infos").Joins("inner join groups on file_infos.group_id = groups.id").Take(&fileInfos)
+	result = i.dbConn.Table("file_infos").Joins("inner join groups on file_infos.group_id = groups.id").
+		Where("groups.name = ?", groupName).
+		Find(&fileInfos)
 	if result.Error != nil {
 		return nil, myerr.NewServerErrorWrap(result.Error, "Problem with fetching all files from a specific group")
 	}

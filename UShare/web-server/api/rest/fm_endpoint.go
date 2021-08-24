@@ -227,7 +227,7 @@ func (i *FileManagementEndpointImpl) RetrieveAllFilesInfo(c *gin.Context) {
 		return
 	}
 
-	fileResponses := make([]common.FileInfoResponse, len(fileInfos))
+	fileResponses := make([]common.FileInfoResponse, 0, len(fileInfos))
 	for _, fileInfo := range fileInfos {
 		fileResponses = append(fileResponses, common.FileInfoResponse{
 			ID:         fileInfo.ID,
