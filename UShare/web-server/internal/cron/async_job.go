@@ -36,19 +36,23 @@ func (i *GroupEraserJobImpl) DeleteGroups() {
 		return
 	}
 
+	deleteGroups(i.groupsDir, groupNames)
+
+	err = i.uamDAO.EraseDeactivatedGroups(groupNames)
+	if err != nil {
+		log.Printf("Couldnt erase inactive groups. Reason: %v\n", err)
+	}
+}
+
+func deleteGroups(groupsDir string, groupNames []string) {
 	var wg sync.WaitGroup
 	for _, name := range groupNames {
-		groupDir := path.Join(i.groupsDir, name)
+		groupDir := path.Join(groupsDir, name)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			os.RemoveAll(groupDir)
 		}()
 	}
-
 	wg.Wait()
-	err = i.uamDAO.EraseDeactivatedGroups(groupNames)
-	if err != nil {
-		log.Printf("Couldnt erase inactive groups. Reason: %v\n", err)
-	}
 }

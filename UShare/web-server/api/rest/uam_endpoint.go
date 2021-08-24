@@ -360,7 +360,7 @@ func (i *UamEndpointImpl) GetAllUsersInGroup(c *gin.Context) {
 		return
 	}
 
-	groupName := c.Query("group_name")
+	groupName := c.Param("groupname")
 	if groupName == "" {
 		common.SendErrorResponse(c, myerr.NewClientError("Groupname isnt specified"))
 		return

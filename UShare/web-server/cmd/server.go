@@ -1,120 +1,97 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
-	"os"
-	"strconv"
 	"net/http"
+	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
-	"context"
 	"time"
 
 	"github.com/danielpenchev98/FMI-Golang/UShare/web-server/api/rest"
 	"github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/auth"
-	asyncJob "github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/cron"
+	cronJob "github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/cron"
 	"github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/db/dao"
 	"github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/db/dbconn"
 	myerr "github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/error"
 	"github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/middleware"
 	val "github.com/danielpenchev98/FMI-Golang/UShare/web-server/internal/validator"
 	"github.com/gin-gonic/gin"
-	"github.com/robfig/cron/v3"
 	"github.com/pkg/errors"
+	"github.com/robfig/cron/v3"
 )
 
-var router = gin.Default()
+const (
+	hostParamName     = "HOST"
+	portParamName     = "PORT"
+	groupDirParamName = "GROUP_DIR"
+)
+
+type ServerConfig struct {
+	Host string
+	Port int
+}
+
 var groupDirPath string
 
 func main() {
-	host := os.Getenv("HOST")
-	if host == ""{
-		log.Fatal("Please set HOST")
-	}
-
-	portStr := os.Getenv("PORT")
-	if portStr == "" {
-		log.Fatal("Please set PORT env variable")
-	}
-
-	portNum, err := strconv.Atoi(portStr)
+	serverCfg, err := getServerConfig()
 	if err != nil {
-		log.Fatal("The env variable PORT has illegal port number")
+		log.Fatalf("Proble with the server config. Reason %s", err)
 	}
 
 	if err = createGroupsDir(); err != nil {
 		log.Fatal(err)
 	}
 
-	jwtCreator, err := auth.NewJwtCreatorImpl()
-	if err != nil {
-		log.Fatal(myerr.NewServerErrorWrap(err, "Couldnt create a new Jwt Creator"))
-	}
-
-	filter := middleware.NewAuthzFilterImpl(jwtCreator)
-
-	uamEndpoint := rest.NewUamEndPointImpl(createUamDAO(), jwtCreator, val.NewBasicValidator(), groupDirPath)
-	fmEndpoint := rest.NewFileManagementEndpointImpl(createUamDAO(), createFmDAO(), groupDirPath)
-
-	groupDeleter := asyncJob.NewGroupEraserJobImpl(createUamDAO(), groupDirPath)
-	asyncJob := cron.New()
-	asyncJob.AddFunc("@every 1m", groupDeleter.DeleteGroups)
+	httpServer := createHttpServer(serverCfg.Host, serverCfg.Port)
+	asyncJob := createCronJob()
 	asyncJob.Start()
 	defer asyncJob.Stop()
 
-	v1 := router.Group("/v1")
-	{
-		public := v1.Group("/public")
-		{
-			public.GET("/healthcheck", rest.CheckHealth)
-			public.POST("/user/registration", uamEndpoint.CreateUser)
-			public.POST("/user/login", uamEndpoint.Login)
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(errors.Wrapf(err, "server listen-and-serve failed"))
 		}
+	}()
 
-		protected := v1.Group("/protected").Use(filter.Authz)
-		{
-			protected.DELETE("/group/membership/revocation", uamEndpoint.RevokeMembership)
-			protected.POST("/group/creation", uamEndpoint.CreateGroup)
-			protected.POST("/group/invitation", uamEndpoint.AddMember)
-			protected.DELETE("/user/deletion", uamEndpoint.DeleteUser)
-			protected.DELETE("/group/deletion", uamEndpoint.DeleteGroup)
-			protected.POST("/group/file/upload", fmEndpoint.UploadFile)
-			protected.GET("/group/file/download", fmEndpoint.DownloadFile)
-			protected.DELETE("/group/file/deletion", fmEndpoint.DeleteFile)
-			protected.GET("/group/files", fmEndpoint.RetrieveAllFilesInfo)
-			protected.GET("/groups", uamEndpoint.GetAllGroupsInfo)
-			protected.GET("/users", uamEndpoint.GetAllUsersInfo)
-			protected.GET("/group/users", uamEndpoint.GetAllUsersInGroup)
-		}
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
+	<-done
+
+	log.Println("shutting down http server...")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		panic(errors.Wrapf(err, "failed to shutdown server"))
+	}
+	<-ctx.Done()
+}
+
+func getServerConfig() (ServerConfig, error) {
+	host := os.Getenv(hostParamName)
+	if host == "" {
+		return ServerConfig{}, errors.Errorf("Please set %s env variable", hostParamName)
 	}
 
-	httpServer := &http.Server{
-        Addr:    fmt.Sprintf("%s:%d", host, portNum),
-        Handler: router,
-    }
- 
-    go func() {
-        if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-            panic(errors.Wrapf(err, "server listen-and-serve failed"))
-        }
-    }()
- 
-    done := make(chan os.Signal, 1)
-    signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
-    <-done
- 
-    //log.Info("shutting down http server...")
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
- 
-    if err := httpServer.Shutdown(ctx); err != nil {
-        panic(errors.Wrapf(err, "failed to shutdown server"))
-    }
-    // nolint:gosimple
-    select {
-    case <-ctx.Done():
-    }
+	portStr := os.Getenv(portParamName)
+	if portStr == "" {
+		return ServerConfig{}, errors.Errorf("Please set %s env variable", portParamName)
+	}
+
+	portNum, err := strconv.Atoi(portStr)
+	if err != nil {
+		return ServerConfig{}, errors.Errorf("The env variable %s has illegal port number", portParamName)
+	}
+
+	return ServerConfig{
+		Host: host,
+		Port: portNum,
+	}, nil
 }
 
 func createGroupsDir() error {
@@ -133,7 +110,6 @@ func createGroupsDir() error {
 	}
 
 	return nil
-
 }
 
 func createUamDAO() dao.UamDAO {
@@ -162,4 +138,57 @@ func createFmDAO() dao.FmDAO {
 	}
 
 	return fmDAO
+}
+
+func createHttpServer(host string, port int) *http.Server {
+	var router = gin.Default()
+
+	jwtCreator, err := auth.NewJwtCreatorImpl()
+	if err != nil {
+		log.Fatal(myerr.NewServerErrorWrap(err, "Couldnt create a new Jwt Creator"))
+	}
+
+	filter := middleware.NewAuthzFilterImpl(jwtCreator)
+	uamEndpoint := rest.NewUamEndPointImpl(createUamDAO(), jwtCreator, val.NewBasicValidator(), groupDirPath)
+	fmEndpoint := rest.NewFileManagementEndpointImpl(createUamDAO(), createFmDAO(), groupDirPath)
+
+	v1 := router.Group(apiVersionPath)
+	{
+		public := v1.Group(publicAPIPath)
+		{
+			public.GET(healthCheckAPIEndpoint, rest.CheckHealth)
+			public.POST(registerAPIEndpoint, uamEndpoint.CreateUser)
+			public.POST(loginAPIEndpoint, uamEndpoint.Login)
+		}
+
+		protected := v1.Group(protectedAPIPath).Use(filter.Authz)
+		{
+			protected.DELETE(removeMemberAPIEndpoint, uamEndpoint.RevokeMembership)
+			protected.POST(createGroupAPIEndpoint, uamEndpoint.CreateGroup)
+			protected.POST(addMemberAPIEndpoint, uamEndpoint.AddMember)
+			protected.DELETE(removeMemberAPIEndpoint, uamEndpoint.DeleteUser)
+			protected.DELETE(deleteGroupAPIEndpoint, uamEndpoint.DeleteGroup)
+			protected.POST(uploadFileAPIEndpoint, fmEndpoint.UploadFile)
+			protected.GET(downloadFileAPIEndpoint, fmEndpoint.DownloadFile)
+			protected.DELETE(deleteFileAPIEndpoint, fmEndpoint.DeleteFile)
+			protected.GET(getAllFilesAPIEndpoint, fmEndpoint.RetrieveAllFilesInfo)
+			protected.GET(getAllGroupsAPIEndpoint, uamEndpoint.GetAllGroupsInfo)
+			protected.GET(getAllUsersAPIEndpoint, uamEndpoint.GetAllUsersInfo)
+			protected.GET(getAllMembersAPIEndpoint, uamEndpoint.GetAllUsersInGroup)
+		}
+	}
+
+	httpServer := &http.Server{
+		Addr:    fmt.Sprintf("%s:%d", host, port),
+		Handler: router,
+	}
+
+	return httpServer
+}
+
+func createCronJob() *cron.Cron {
+	groupDeleter := cronJob.NewGroupEraserJobImpl(createUamDAO(), groupDirPath)
+	asyncJob := cron.New()
+	asyncJob.AddFunc("@every 1m", groupDeleter.DeleteGroups)
+	return asyncJob
 }
