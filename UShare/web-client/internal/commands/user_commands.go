@@ -130,10 +130,10 @@ func ShowAllMembers(hostURL, token string) {
 		getAllMembers.PrintDefaults()
 		os.Exit(1)
 	}
-	successBody := UsersInfoResponse{}
 
+	successBody := UsersInfoResponse{}
 	restClient := restclient.NewRestClientImpl(token)
-	url := fmt.Sprintf("%s"+endpoints.GetAllMembersAPIEndpoint, hostURL, *groupName)
+	url := fmt.Sprintf("%s%s?group_name=%s", hostURL, endpoints.GetAllMembersAPIEndpoint, *groupName)
 	err := restClient.Get(url, &successBody)
 
 	if err != nil {

@@ -24,10 +24,10 @@ type FileRequest struct {
 
 //FileInfo - contains all the information about a file
 type FileInfo struct {
-	ID         uint
-	Name       string
-	OwnerID    uint
-	UploadedAt time.Time
+	ID         uint      `json:"file_id"`
+	Name       string    `json:"file_name"`
+	OwnerID    uint      `json:"owner_id"`
+	UploadedAt time.Time `json:"uploaded_at"`
 }
 
 //FilesInfoResponse - response, containing information about multiple files
@@ -132,7 +132,7 @@ func ShowAllFilesInGroup(hostURL, token string) {
 
 	successBody := FilesInfoResponse{}
 	restClient := restclient.NewRestClientImpl(token)
-	url := fmt.Sprintf("%s"+endpoints.GetAllFilesAPIEndpoint, hostURL, *groupName)
+	url := fmt.Sprintf("%s%s?group_name=%s", hostURL, endpoints.GetAllFilesAPIEndpoint, *groupName)
 	err := restClient.Get(url, &successBody)
 
 	if err != nil {
