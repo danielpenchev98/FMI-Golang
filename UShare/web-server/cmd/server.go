@@ -161,7 +161,7 @@ func createHttpServer(host string, port int) *http.Server {
 			protected.DELETE("/group/membership/revocation", uamEndpoint.RevokeMembership)
 			protected.POST("/group/creation", uamEndpoint.CreateGroup)
 			protected.POST("/group/invitation", uamEndpoint.AddMember)
-			protected.DELETE("/group/membership/revocation", uamEndpoint.DeleteUser)
+			protected.DELETE("/group/user/deletion", uamEndpoint.DeleteUser)
 			protected.DELETE("/group/deletion", uamEndpoint.DeleteGroup)
 			protected.POST("/group/file/upload", fmEndpoint.UploadFile)
 			protected.GET("/group/file/download", fmEndpoint.DownloadFile)
