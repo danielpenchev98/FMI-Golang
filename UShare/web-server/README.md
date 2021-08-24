@@ -80,7 +80,7 @@ Also every server response sends `JSON object` with the `status code` of the req
 |`DELETE /v1/protected/group/deletion`|`JSON object` containing the `group name`|The group with the specified name is deleted|-|
 |`POST /v1/protected/group/invitation`|`JSON object` containing the `group name` and the user's `username` |Membership created|-|
 |`DELETE /v1/protected/group/membership/revocation`|`JSON object` containing the `group name` and the member's `username`|Membership revoked|-|
-|`GET /v1/protected/group/users`| `QueryParameter` containing the `group_name` |Fetch information about all members of a group | Information records about the members|
+|`GET /v1/protected/group/users`| `QueryParameter` containing the `group name` |Fetch information about all members of a group | Information records about the members|
 |`GET /v1/protected/groups`|-|Fetch information about all groups|Information records about the members|
 |`POST /v1/protected/group/file/upload`|`Form-data` containing a file and `QueryParameter` containg the `group name`|File Upload|ID of the file(`file_id`)|
 |`GET /v1/protected/group/file/download`|`QueryParameters` containing the `group name` and the `file_id`|File Download|File|

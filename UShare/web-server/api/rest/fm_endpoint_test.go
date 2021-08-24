@@ -134,7 +134,7 @@ var _ = Describe("UamEndpoint", func() {
 					form, contentType = createFormFile(inputFilePath)
 				})
 
-				Context("and groupname is not specified as query param", func() {
+				Context("and group_name is not specified as query param", func() {
 					BeforeEach(func() {
 						uamDAO.EXPECT().
 							GetGroup(gomock.Any()).
@@ -159,7 +159,7 @@ var _ = Describe("UamEndpoint", func() {
 					})
 				})
 
-				Context("and groupname is specified as query param", func() {
+				Context("and group_name is specified as query param", func() {
 					BeforeEach(func() {
 						req, _ = http.NewRequest("POST", fmt.Sprintf("/protected/group/file/upload?group_name=%s", groupName), form)
 						req.Header.Add("Content-Type", contentType)
