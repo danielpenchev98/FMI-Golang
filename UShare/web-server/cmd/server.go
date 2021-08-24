@@ -73,11 +73,6 @@ func main() {
 }
 
 func getServerConfig() (ServerConfig, error) {
-	host := os.Getenv(hostParamName)
-	if host == "" {
-		return ServerConfig{}, errors.Errorf("Please set %s env variable", hostParamName)
-	}
-
 	portStr := os.Getenv(portParamName)
 	if portStr == "" {
 		return ServerConfig{}, errors.Errorf("Please set %s env variable", portParamName)
@@ -89,7 +84,7 @@ func getServerConfig() (ServerConfig, error) {
 	}
 
 	return ServerConfig{
-		Host: host,
+		Host: os.Getenv(hostParamName),
 		Port: portNum,
 	}, nil
 }
@@ -152,29 +147,29 @@ func createHttpServer(host string, port int) *http.Server {
 	uamEndpoint := rest.NewUamEndPointImpl(createUamDAO(), jwtCreator, val.NewBasicValidator(), groupDirPath)
 	fmEndpoint := rest.NewFileManagementEndpointImpl(createUamDAO(), createFmDAO(), groupDirPath)
 
-	v1 := router.Group(apiVersionPath)
+	v1 := router.Group("/v1")
 	{
-		public := v1.Group(publicAPIPath)
+		public := v1.Group("/public")
 		{
-			public.GET(healthCheckAPIEndpoint, rest.CheckHealth)
-			public.POST(registerAPIEndpoint, uamEndpoint.CreateUser)
-			public.POST(loginAPIEndpoint, uamEndpoint.Login)
+			public.GET("/healthcheck", rest.CheckHealth)
+			public.POST("/user/registration", uamEndpoint.CreateUser)
+			public.POST("/user/login", uamEndpoint.Login)
 		}
 
-		protected := v1.Group(protectedAPIPath).Use(filter.Authz)
+		protected := v1.Group("/protected").Use(filter.Authz)
 		{
-			protected.DELETE(removeMemberAPIEndpoint, uamEndpoint.RevokeMembership)
-			protected.POST(createGroupAPIEndpoint, uamEndpoint.CreateGroup)
-			protected.POST(addMemberAPIEndpoint, uamEndpoint.AddMember)
-			protected.DELETE(removeMemberAPIEndpoint, uamEndpoint.DeleteUser)
-			protected.DELETE(deleteGroupAPIEndpoint, uamEndpoint.DeleteGroup)
-			protected.POST(uploadFileAPIEndpoint, fmEndpoint.UploadFile)
-			protected.GET(downloadFileAPIEndpoint, fmEndpoint.DownloadFile)
-			protected.DELETE(deleteFileAPIEndpoint, fmEndpoint.DeleteFile)
-			protected.GET(getAllFilesAPIEndpoint, fmEndpoint.RetrieveAllFilesInfo)
-			protected.GET(getAllGroupsAPIEndpoint, uamEndpoint.GetAllGroupsInfo)
-			protected.GET(getAllUsersAPIEndpoint, uamEndpoint.GetAllUsersInfo)
-			protected.GET(getAllMembersAPIEndpoint, uamEndpoint.GetAllUsersInGroup)
+			protected.DELETE("/group/membership/revocation", uamEndpoint.RevokeMembership)
+			protected.POST("/group/creation", uamEndpoint.CreateGroup)
+			protected.POST("/group/invitation", uamEndpoint.AddMember)
+			protected.DELETE("/group/membership/revocation", uamEndpoint.DeleteUser)
+			protected.DELETE("/group/deletion", uamEndpoint.DeleteGroup)
+			protected.POST("/group/file/upload", fmEndpoint.UploadFile)
+			protected.GET("/group/file/download", fmEndpoint.DownloadFile)
+			protected.DELETE("/group/file/deletion", fmEndpoint.DeleteFile)
+			protected.GET("/group/:groupname/files", fmEndpoint.RetrieveAllFilesInfo)
+			protected.GET("/groups", uamEndpoint.GetAllGroupsInfo)
+			protected.GET("/users", uamEndpoint.GetAllUsersInfo)
+			protected.GET("/group/:groupname/users", uamEndpoint.GetAllUsersInGroup)
 		}
 	}
 
