@@ -130,17 +130,13 @@ func ShowAllFilesInGroup(hostURL, token string) {
 		os.Exit(1)
 	}
 
-	rqBody := GroupPayload{
-		GroupName: *groupName,
-	}
 	successBody := FilesInfoResponse{}
-
 	restClient := restclient.NewRestClientImpl(token)
-	url := hostURL + endpoints.GetAllFilesAPIEndpoint
-	err := restClient.Post(url, &rqBody, &successBody)
+	url := fmt.Sprintf("%s"+endpoints.GetAllFilesAPIEndpoint, hostURL, *groupName)
+	err := restClient.Get(url, &successBody)
 
 	if err != nil {
-		fmt.Printf("Problem with the group creation request. %s\n", err.Error())
+		fmt.Printf("Problem with the retrieval of group files. %s\n", err.Error())
 		return
 	}
 

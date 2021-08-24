@@ -26,11 +26,11 @@ const (
 	//DeleteFileAPIEndpoint - api endpoint for deleting file, given a group
 	DeleteFileAPIEndpoint = protectedAPIPath + "/group/file/deletion"
 	//GetAllFilesAPIEndpoint - api endpoint for fetching all files, uploaded for a specific group
-	GetAllFilesAPIEndpoint = protectedAPIPath + "/group/files"
+	GetAllFilesAPIEndpoint = protectedAPIPath + "/group/%s/files"
 	//GetAllGroupsAPIEndpoint - api endpoint for fetching all existing groups
 	GetAllGroupsAPIEndpoint = protectedAPIPath + "/groups"
 	//GetAllUsersAPIEndpoint - api endpoint for fetching all users
 	GetAllUsersAPIEndpoint = protectedAPIPath + "/users"
 	//GetAllMembersAPIEndpoint - api endpoint for fetching all members of a group
-	GetAllMembersAPIEndpoint = protectedAPIPath + "/group/users"
+	GetAllMembersAPIEndpoint = protectedAPIPath + "/group/%s/users"
 )
