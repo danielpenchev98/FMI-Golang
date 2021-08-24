@@ -212,7 +212,7 @@ func (i *FileManagementEndpointImpl) RetrieveAllFilesInfo(c *gin.Context) {
 		return
 	}
 
-	groupName := c.Param("groupname")
+	groupName := c.Query("groupname")
 	if groupName == "" {
 		common.SendErrorResponse(c, myerr.NewClientError("Groupname isnt specified"))
 		return

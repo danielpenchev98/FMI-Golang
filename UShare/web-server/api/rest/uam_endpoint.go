@@ -77,7 +77,6 @@ func (i *UamEndpointImpl) CreateUser(c *gin.Context) {
 
 	err = i.uamDAO.CreateUser(rq.Username, string(hashedPassword))
 	if _, ok := err.(*myerr.ClientError); ok {
-		log.Println("FUCK it")
 		common.SendErrorResponse(c, err)
 		return
 	} else if err != nil {
@@ -360,7 +359,7 @@ func (i *UamEndpointImpl) GetAllUsersInGroup(c *gin.Context) {
 		return
 	}
 
-	groupName := c.Param("groupname")
+	groupName := c.Query("groupname")
 	if groupName == "" {
 		common.SendErrorResponse(c, myerr.NewClientError("Groupname isnt specified"))
 		return

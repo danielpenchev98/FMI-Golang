@@ -166,10 +166,10 @@ func createHttpServer(host string, port int) *http.Server {
 			protected.POST("/group/file/upload", fmEndpoint.UploadFile)
 			protected.GET("/group/file/download", fmEndpoint.DownloadFile)
 			protected.DELETE("/group/file/deletion", fmEndpoint.DeleteFile)
-			protected.GET("/group/:groupname/files", fmEndpoint.RetrieveAllFilesInfo)
+			protected.GET("/group/files", fmEndpoint.RetrieveAllFilesInfo)
 			protected.GET("/groups", uamEndpoint.GetAllGroupsInfo)
 			protected.GET("/users", uamEndpoint.GetAllUsersInfo)
-			protected.GET("/group/:groupname/users", uamEndpoint.GetAllUsersInGroup)
+			protected.GET("/group/users", uamEndpoint.GetAllUsersInGroup)
 		}
 	}
 
