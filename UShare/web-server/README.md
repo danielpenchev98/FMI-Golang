@@ -1,5 +1,7 @@
 # Web-Server
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/danielpenchev98/FMI-Golang/UShare/web-server?style=flat-square)](https://goreportcard.com/report/danielpenchev98/FMI-Golang/UShare/web-server)
+
 ## Description
 The main idea of this server is to allow people to share freely their files with everyone.
 In order to keep the anonymity of the users and the interformation they share, the following limitations are imposed:
